@@ -85,6 +85,25 @@ Pane ↔ session binding comes from `report-agent-session` data in the Herdr sna
   (`CODEX_HOME` for Codex). Profiles are read from `.env` `INSTANCES` (no hardcoded list).
 - `pane.report_metadata` shows `profile` and last-turn tokens (from the usage fallback record) per agent pane.
 
+### 4.5a Agent registry and launch preflight (owner requirement, 2026-09-28)
+The middleware keeps a registry of agents: **supported** = an adapter exists (`adapters/<agent>/manifest.toml`);
+**subscribed** = listed in `.env` `INSTANCES`. `harness agents` prints every supported/subscribed agent with its
+status. `harness preflight <agent> [--instance <name>] [--init]` runs, in order, and logs each step to
+`var/logs/preflight.lifecycle.jsonl`:
+
+| Step | Check | Failure verdict |
+|---|---|---|
+| supported | adapter manifest exists | `unsupported` — print "agent-harness: <agent> is not supported" |
+| installed | manifest `binary` resolves on PATH | `not_installed` |
+| subscribed | instance in `INSTANCES` (`--init`: add it with the manifest's default home) | `not_subscribed` |
+| configured | the agent's hook config contains `harness-hook <agent>` (`--init`: run compile) | `not_configured` |
+| working | adapter round-trip on its own fixtures + shim/python resolve + no failed dispatch in the last 24 h of router logs | `broken: <reason>` |
+
+Verdict `ready` or a failure is printed as one line and returned as an exit code (0 ready; 10–14 failures).
+Herdr trigger: the plugin `[[events]]` handler for `pane.agent_detected` runs `preflight --init` for the detected
+agent and shows the verdict as a Herdr notification (failures always; `ready` only on first detection per pane).
+"Supported but not working" is always logged and printed, never silent.
+
 ### 4.6 Dashboard pane
 A read-only TUI (Python, stdlib only) refreshing every 2 s: per-session last turn tokens (both sources, labelled),
 notify decisions (last 20), outstanding background tasks, hub health, obs spool depth and recent errors. Bounded
