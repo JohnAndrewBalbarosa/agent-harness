@@ -63,8 +63,8 @@ class BootstrapTests(unittest.TestCase):
         pythonw.parent.mkdir(parents=True)
         pythonw.write_bytes(b"")
         layout = bootstrap.Layout(self.root, self.orb_health, "http://127.0.0.1:1", orb_ui=False)
-        self.assertEqual(bootstrap.ensure_orb(layout, self.launch), "ui_disabled")
-        self.assertEqual(self.launch.launched, [])
+        self.assertEqual(bootstrap.ensure_orb(layout, self.launch), "requested_headless")
+        self.assertEqual(self.launch.launched[0][0][-1], "--headless")  # logic keeps running, no window
         self.assertFalse(bootstrap.default_layout({"ORB_UI": "0", "LOCALAPPDATA": str(self.root)}).orb_ui)
         self.assertTrue(bootstrap.default_layout({"LOCALAPPDATA": str(self.root)}).orb_ui)
 

@@ -18,6 +18,7 @@ from PIL import Image, ImageDraw
 from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
 
+from mode import headless_requested
 from status_common import (
     COLORS,
     CONFIG_PATH,
@@ -52,7 +53,8 @@ DONE_BELL_PATH = Path(__file__).resolve().parent / "assets" / "service-bell.mp3"
 
 
 class StatusOrb:
-    def __init__(self) -> None:
+    def __init__(self, headless: bool = False) -> None:
+        self.headless = headless
         try:
             ctypes.windll.user32.SetProcessDpiAwarenessContext(ctypes.c_void_p(-4))
         except Exception:
@@ -83,6 +85,13 @@ class StatusOrb:
         self.last_session_color_events: dict[str, int] = {}
         self.observer: Observer | None = None
         self.panel: tk.Toplevel | None = None
+        self.root: tk.Tk | None = None
+        self.tray: pystray.Icon | None = None
+        if headless:  # same scan/sound/recovery/health loop, no window or tray
+            self.initial_scan()
+            self.start_watcher()
+            checkpoint("orb_started", pid=os.getpid(), headless=True)
+            return
         self.root = tk.Tk()
         self.root.title("Codex Status Orb")
         self.root.overrideredirect(True)
@@ -662,22 +671,29 @@ class StatusOrb:
             now = time.time()
             if self.dirty.is_set() or now - self.last_process_check >= 1.0:
                 self.scan()
-            self.draw()
+            if not self.headless:
+                self.draw()
             if now - self.last_heartbeat >= 1.0:
                 write_health("healthy", "ui_tick", self.error_count, self.last_error)
                 self.last_heartbeat = now
         except Exception as exc:
             self.record_error("ui_tick", exc)
         finally:
-            self.root.after(POLL_MS, self.tick)
+            if self.root is not None:
+                self.root.after(POLL_MS, self.tick)
 
     def run(self) -> None:
-        self.root.mainloop()
+        if self.root is not None:
+            self.root.mainloop()
+            return
+        while True:
+            self.tick()
+            self.dirty.wait(POLL_MS / 1000)
 
 
 if __name__ == "__main__":
     try:
-        StatusOrb().run()
+        StatusOrb(headless=headless_requested(sys.argv, os.environ)).run()
     except SystemExit:
         pass
     except Exception as exc:

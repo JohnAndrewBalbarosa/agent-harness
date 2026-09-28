@@ -35,7 +35,7 @@ class Layout:
     orb_health: Path
     obs_endpoint: str
     hub_dir: Path | None = None  # observability hub checkout (start.ps1); default <root>/hub
-    orb_ui: bool = True  # ORB_UI=0: the orb hook keeps session state, but no orb window is started
+    orb_ui: bool = True  # ORB_UI=0: the orb runs headless (same logic and sounds, no window or tray)
 
     @property
     def log(self) -> Path:
@@ -104,10 +104,11 @@ def ensure_orb(layout: Layout, launch: Launch) -> str:
     pythonw = orb / ".venv" / "Scripts" / "pythonw.exe"
     if not pythonw.exists():
         return "not_installed"
-    if not layout.orb_ui:
-        return "ui_disabled"
     if _orb_healthy(layout.orb_health):
         return "already_running"
+    if not layout.orb_ui:
+        launch([pythonw, orb / "orb.py", "--headless"], orb)
+        return "requested_headless"
     launch([pythonw, orb / "orb.py"], orb)
     return "requested"
 

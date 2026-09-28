@@ -60,9 +60,8 @@ def main() -> int:
             current["state_written_ns"] = time.time_ns()
             write_session(current)
             checkpoint("hook_processed", event=event_name, session=session_id, status=current["status"])
-            # ORB_UI=0: keep the session state (other UIs such as Herdr can use it), never open the orb window.
-            if event_name == "SessionStart" and os.environ.get("ORB_UI", "").strip() != "0":
-                launch_orb()
+            if event_name == "SessionStart":
+                launch_orb()  # with ORB_UI=0 the orb runs headless: same logic, no window
     except Exception as exc:
         log(f"hook-error event={event_name!r} session={session_id!r} error={exc!r}")
     finally:
