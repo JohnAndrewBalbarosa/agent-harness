@@ -22,9 +22,13 @@ def env(cfg: Config) -> dict[str, str]:
 
 def policy_import(cfg: Config, home: Path | None = None) -> str:
     """`~/` form under the user profile, so usernames with spaces cannot break Claude's @import parsing."""
-    policy = cfg.harness_home / "policy" / "AGENTS.md"
     home = home or Path.home()
+    names = ["AGENTS.md"] + (["RTK.md"] if cfg.rtk_bin else [])
+    return "\n".join(_import(cfg.harness_home / "policy" / name, home) for name in names)
+
+
+def _import(path: Path, home: Path) -> str:
     try:
-        return "@~/" + policy.relative_to(home).as_posix()
+        return "@~/" + path.relative_to(home).as_posix()
     except ValueError:
-        return "@" + policy.as_posix()
+        return "@" + path.as_posix()

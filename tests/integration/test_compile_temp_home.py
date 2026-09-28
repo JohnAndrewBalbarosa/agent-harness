@@ -78,6 +78,19 @@ class CompileTempHomeTests(unittest.TestCase):
         self.assertFalse((self.claude / compile_run.LOCK_FILE).exists(), "rulesync lock leaked into the agent home")
         self.assertEqual(compile_run.compile_all(self.cfg, dry_run=True), [])
 
+    def test_rtk_bash_hook_reaches_both_agents_and_is_removed_when_disabled(self):
+        import dataclasses
+        on = dataclasses.replace(self.cfg, rtk_bin="rtk")
+        compile_run.compile_all(on, dry_run=False)
+        claude_pre = json.loads((self.claude / "settings.json").read_text(encoding="utf-8"))["hooks"]["PreToolUse"]
+        codex_pre = json.loads((self.codex / "hooks.json").read_text(encoding="utf-8"))["hooks"]["PreToolUse"]
+        for groups, agent in ((claude_pre, "claude"), (codex_pre, "codex")):
+            self.assertIn(("Bash", f"rtk hook {agent}"), [(g.get("matcher"), h["command"]) for g in groups for h in g["hooks"]])
+        self.assertIn("RTK.md", (self.claude / "CLAUDE.md").read_text(encoding="utf-8"))
+        compile_run.compile_all(self.cfg, dry_run=False)
+        for path in (self.claude / "settings.json", self.codex / "hooks.json"):
+            self.assertNotIn("rtk hook", path.read_text(encoding="utf-8"))
+
     def test_hard_linked_codex_hooks_stay_linked(self):
         other = self.codex.parent / ".codex-cy"
         other.mkdir()

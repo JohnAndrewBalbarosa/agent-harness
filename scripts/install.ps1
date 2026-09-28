@@ -84,6 +84,9 @@ Invoke-Step 'runtime.env' {
 }
 
 Invoke-Step 'runtime.policy' {
+  New-Item -ItemType Directory -Path (Join-Path $Destination 'policy') -Force | Out-Null
+  # Harness-owned notes are refreshed every run; AGENTS.md is owner-owned and only created once.
+  Copy-Item -LiteralPath (Join-Path $repoRoot 'policy\RTK.md') -Destination (Join-Path $Destination 'policy\RTK.md') -Force
   $policy = Join-Path $Destination 'policy\AGENTS.md'
   if (-not (Test-Path -LiteralPath $policy)) {
     New-Item -ItemType Directory -Path (Split-Path $policy -Parent) -Force | Out-Null

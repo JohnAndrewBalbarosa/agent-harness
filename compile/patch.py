@@ -4,7 +4,7 @@ from __future__ import annotations
 import copy
 from typing import Mapping
 
-HARNESS_COMMAND_MARKERS = ("harness-hook", "global-hook-router")
+HARNESS_COMMAND_MARKERS = ("harness-hook", "global-hook-router", "rtk hook ")
 
 
 def merge_env(settings: Mapping, managed: Mapping[str, str], previously_managed: set[str]) -> dict:

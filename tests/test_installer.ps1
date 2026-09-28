@@ -32,7 +32,7 @@ try {
   # Real install (compile skipped: covered by tests/integration/test_compile_temp_home.py).
   & (Join-Path $root 'scripts\install.ps1') -Destination $destination -EnvFile $envFile -Prerequisites ValidateOnly -SkipCompile -SkipServices -SkipOrbVenv | Out-Null
   Assert (-not (Test-Path -LiteralPath (Join-Path $destination 'tools\observability-client\var'))) 'Installer copied the repo checkout runtime state (tools\observability-client\var).'
-  foreach ($item in @('core\router\harness-hook.cmd', 'adapters\claude\adapter.py', 'compile\run.py', 'tools\observability-client\obs.py', '.env', 'policy\AGENTS.md')) {
+  foreach ($item in @('policy\RTK.md', 'core\router\harness-hook.cmd','adapters\claude\adapter.py', 'compile\run.py', 'tools\observability-client\obs.py', '.env', 'policy\AGENTS.md')) {
     Assert (Test-Path -LiteralPath (Join-Path $destination $item)) "Missing after install: $item"
   }
   $policy = Get-Content -LiteralPath (Join-Path $destination 'policy\AGENTS.md') -Raw

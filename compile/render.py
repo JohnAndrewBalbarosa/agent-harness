@@ -13,6 +13,7 @@ CANONICAL = {
 }
 TIMEOUTS_S = {"PermissionRequest": 600, "SessionEnd": 10}
 DEFAULT_TIMEOUT_S = 30
+RTK_TIMEOUT_S = 10
 
 
 def hooks_source(cfg: Config, manifests: Mapping[str, Mapping]) -> dict:
@@ -21,6 +22,8 @@ def hooks_source(cfg: Config, manifests: Mapping[str, Mapping]) -> dict:
         command = hook_command(cfg, agent, style=manifest.get("hook_command_style", "quoted"))
         hooks = {CANONICAL[native]: [{"command": command, "timeout": TIMEOUTS_S.get(native, DEFAULT_TIMEOUT_S)}]
                  for native in manifest.get("events", []) if native in CANONICAL}
+        if cfg.rtk_bin:  # runs natively (not via the router): it is on every Bash call and must rewrite its input
+            hooks["preToolUse"] = [{"matcher": "Bash", "command": f"{cfg.rtk_bin} hook {agent}", "timeout": RTK_TIMEOUT_S}]
         doc[manifest["rulesync_target"]] = {"hooks": hooks}
     return doc
 

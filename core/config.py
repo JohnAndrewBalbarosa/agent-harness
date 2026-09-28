@@ -18,6 +18,7 @@ DEFAULTS = {
     "NOTIFY_RATE_LIMIT": "5/60",
     "RULESYNC_VERSION": "22.0.0",
     "HERDR_BIN": "",
+    "RTK_BIN": "",  # rtk (github.com/rtk-ai/rtk) compresses Bash output; empty = disabled
 }
 KNOWN_KEYS = REQUIRED + tuple(DEFAULTS)
 _PERCENT_VAR = re.compile(r"%([A-Za-z_][A-Za-z0-9_]*)%")
@@ -41,6 +42,7 @@ class Config:
     notify_rate: tuple[int, int]
     herdr_bin: Path | None
     rulesync_version: str
+    rtk_bin: str | None = None
 
 
 def parse_env_text(text: str) -> dict[str, str]:
@@ -95,6 +97,7 @@ def load(env_file: Path, environ: Mapping[str, str]) -> Config:
         notify_rate=(_int("NOTIFY_RATE_LIMIT", limit), _int("NOTIFY_RATE_LIMIT", window or "60")),
         herdr_bin=Path(values["HERDR_BIN"]) if values["HERDR_BIN"] else None,
         rulesync_version=values["RULESYNC_VERSION"],
+        rtk_bin=values["RTK_BIN"] or None,
     )
 
 
