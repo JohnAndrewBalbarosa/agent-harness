@@ -22,7 +22,7 @@ from core.config import Config, load
 
 ROOT = Path(__file__).resolve().parents[1]
 FAILURE_WINDOW = timedelta(hours=24)
-CODES = {"ready": 0, "unsupported": 10, "not_installed": 11, "not_subscribed": 12, "not_configured": 13, "broken": 14}
+CODES = {"ready": 0, "unsupported": 10, "not_installed": 11, "not_subscribed": 12, "not_configured": 13, "broken": 14, "misconfigured": 15}
 _SAFE = re.compile(r"^[a-z][a-z0-9_-]*$")
 
 Which = Callable[[str], "str | None"]

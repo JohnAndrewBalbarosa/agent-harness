@@ -44,6 +44,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         args = _parser().parse_args(list(sys.argv[1:] if argv is None else argv))
     except SystemExit as exit_:
         return int(exit_.code or 0)
+    try:
+        return _run(args)
+    except (ValueError, OSError) as error:  # unreadable or invalid .env: say so plainly
+        print(f"agent-harness: configuration error in {args.env_file}: {error}")
+        return registry.CODES["misconfigured"]
+
+
+def _run(args: argparse.Namespace) -> int:
     if args.command == "agents":
         rows = registry.agents(args.env_file, os.environ, shutil.which)
         if args.json:

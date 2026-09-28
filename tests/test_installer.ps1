@@ -22,6 +22,9 @@ $envFile = Join-Path $work 'test.env'
   "INSTANCES=codex:personal=$homes\.codex;claude:default=$homes\.claude",
   'OTLP_PORT=4399'
 ) | Set-Content -LiteralPath $envFile -Encoding utf8
+# Hermetic: inside a Herdr pane, hooks from this temp install would start Herdr daemons that lock its files.
+$savedHerdr = @(Get-ChildItem env: | Where-Object Name -like 'HERDR*')
+$savedHerdr | ForEach-Object { Remove-Item -LiteralPath ("env:" + $_.Name) }
 try {
   # Dry run writes nothing.
   $events = @(& (Join-Path $root 'scripts\install.ps1') -Destination $destination -EnvFile $envFile -Prerequisites ValidateOnly -DryRun -SkipCompile -SkipServices -SkipOrbVenv |
@@ -54,8 +57,14 @@ try {
   Assert (Test-Path -LiteralPath (Join-Path $destination 'tools\codex-status-orb\.venv\marker.txt')) 'Re-install removed the status orb venv.'
   Assert (Test-Path -LiteralPath (Join-Path $destination 'tools\observability-client\obs.py')) 'Re-install lost tool code.'
 
-  # The installed router runs from the installed tree (paths with spaces).
-  $out = '{"hook_event_name":"Stop","session_id":"t"}' | & cmd /c "`"$(Join-Path $destination 'core\router\harness-hook.cmd')`" codex"
+  # The installed router runs from the installed tree (paths with spaces), even when the agent's working
+  # directory contains its own 'core' package (python -m would otherwise import that one).
+  $project = Join-Path $work 'project with core'
+  New-Item -ItemType Directory -Path (Join-Path $project 'core\router') -Force | Out-Null
+  Set-Content -LiteralPath (Join-Path $project 'core\__init__.py') -Value 'raise SystemExit("wrong core imported")'
+  Push-Location $project
+  try { $out = '{"hook_event_name":"Stop","session_id":"t"}' | & cmd /c "`"$(Join-Path $destination 'core\router\harness-hook.cmd')`" codex" }
+  finally { Pop-Location }
   Assert (($out -join '').Contains('"continue": true')) "Installed router did not answer Codex Stop: $out"
 
   # The shim runs the interpreter the installer resolved (var\python.path), not a hardcoded path.
@@ -87,5 +96,6 @@ try {
 
   [pscustomobject]@{ syntax = 'passed'; dry_run = 'passed'; install = 'passed'; reinstall = 'passed'; router = 'passed'; portable_sources = 'passed' } | ConvertTo-Json -Compress
 } finally {
+  $savedHerdr | ForEach-Object { Set-Item -LiteralPath ("env:" + $_.Name) -Value $_.Value }
   if (Test-Path -LiteralPath $work) { Remove-Item -LiteralPath $work -Recurse -Force }
 }

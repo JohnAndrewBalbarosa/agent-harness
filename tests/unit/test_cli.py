@@ -36,6 +36,12 @@ class CliTests(unittest.TestCase):
         rows = {r["agent"]: r for r in json.loads(out)}
         self.assertEqual((code, rows["codex"]["instances"], rows["claude"]["instances"]), (0, ["cy"], []))
 
+    def test_bad_configuration_prints_a_message_not_a_traceback(self):
+        self.env.write_text("OTLP_PORT=1\n", encoding="utf-8")
+        code, out = self.run_cli("preflight", "claude")
+        self.assertEqual(code, 15)
+        self.assertIn("agent-harness: configuration error", out)
+
     def test_unknown_command_is_a_usage_error(self):
         code, _ = self.run_cli("nope")
         self.assertEqual(code, 2)
