@@ -44,6 +44,15 @@ class RenderTests(unittest.TestCase):
         self.assertEqual((conf["delete"], conf["preserveUnownedHooks"], conf["global"], conf["features"]), (False, True, True, ["hooks"]))
 
 
+class SkillTests(unittest.TestCase):
+    def test_skill_names_the_installed_cli_and_its_commands(self):
+        text = render.skill(cfg(r"C:\Users\Juan dela Cruz\.agent-harness"))
+        self.assertTrue(text.startswith("---\nname: agent-harness\ndescription: "))
+        self.assertIn(r'"C:\Users\Juan dela Cruz\.agent-harness\core\harness.cmd" usage', text)
+        for command in ("usage", "logs", "agents", "preflight"):
+            self.assertIn(f" {command}", text)
+
+
 class MergeEnvTests(unittest.TestCase):
     def test_sets_managed_keys_and_keeps_others(self):
         merged = patch.merge_env({"model": "opus", "env": {"KEEP": "1"}}, {"A": "x"}, previously_managed=set())

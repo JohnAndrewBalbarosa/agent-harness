@@ -78,12 +78,20 @@ class CompileTempHomeTests(unittest.TestCase):
         self.assertFalse((self.claude / compile_run.LOCK_FILE).exists(), "rulesync lock leaked into the agent home")
         self.assertEqual(compile_run.compile_all(self.cfg, dry_run=True), [])
 
+    def test_harness_skill_is_installed_for_every_agent_home(self):
+        compile_run.compile_all(self.cfg, dry_run=False)
+        for home in (self.claude, self.codex):
+            skill = (home / "skills" / "agent-harness" / "SKILL.md").read_text(encoding="utf-8")
+            self.assertTrue(skill.startswith("---\nname: agent-harness\n"))
+            self.assertIn(str(self.harness / "core" / "harness.cmd"), skill)
+        self.assertEqual(compile_run.compile_all(self.cfg, dry_run=True), [])
+
     def test_rtk_bash_hook_reaches_both_agents_and_is_removed_when_disabled(self):
         import dataclasses
         from unittest import mock
         from compile import render
         on = dataclasses.replace(self.cfg, rtk_bin="rtk")
-        with mock.patch.object(render.shutil, "which", return_value="C:/bin/rtk.exe"):
+        with mock.patch.object(render, "_rtk_on_path", return_value=True):
             compile_run.compile_all(on, dry_run=False)
         claude_pre = json.loads((self.claude / "settings.json").read_text(encoding="utf-8"))["hooks"]["PreToolUse"]
         codex_pre = json.loads((self.codex / "hooks.json").read_text(encoding="utf-8"))["hooks"]["PreToolUse"]

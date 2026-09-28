@@ -2,6 +2,8 @@
 
   agents [--json]                           supported agents, CLI on PATH, subscribed instances
   preflight <agent> [--instance N] [--init] launch check (spec §4.5a); prints one line, exit code = verdict
+  usage [--json]                            deterministic token report (Claude transcripts, Codex rollouts)
+  logs [<component>] [--tail N]             bounded lifecycle-log summary: outcome counts + last failures
 Common options: --env-file PATH (default <HARNESS_HOME>/.env), --log-dir PATH (default <HARNESS_HOME>/var/logs)
 """
 from __future__ import annotations
@@ -31,6 +33,11 @@ def _parser() -> argparse.ArgumentParser:
     preflight.add_argument("agent")
     preflight.add_argument("--instance")
     preflight.add_argument("--init", action="store_true")
+    usage = commands.add_parser("usage", parents=[common])
+    usage.add_argument("--json", action="store_true")
+    logs = commands.add_parser("logs", parents=[common])
+    logs.add_argument("component", nargs="?")
+    logs.add_argument("--tail", type=int, default=500)
     return parser
 
 
@@ -51,7 +58,54 @@ def main(argv: Sequence[str] | None = None) -> int:
         return registry.CODES["misconfigured"]
 
 
+def _usage(args: argparse.Namespace) -> int:
+    from core.config import load
+    from core.usage import report
+    cfg = load(args.env_file, os.environ)
+    claude_homes = [i.home for i in cfg.instances if i.agent == "claude"] or [Path.home() / ".claude"]
+    data = {"claude": report.claude(claude_homes[0] / "projects"),
+            "codex": report.codex({i.name: i.home for i in cfg.instances if i.agent == "codex"})}
+    print(json.dumps(data) if args.json else report.render(data))
+    return 0
+
+
+def _logs(args: argparse.Namespace) -> int:
+    if not args.component:
+        for path in sorted(args.log_dir.glob("*.lifecycle.jsonl")):
+            print(path.name.removesuffix(".lifecycle.jsonl"))
+        return 0
+    path = args.log_dir / f"{args.component}.lifecycle.jsonl"
+    try:
+        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()[-max(1, args.tail):]
+    except OSError:
+        print(f"no log named {args.component!r} in {args.log_dir}")
+        return 1
+    counts: dict[tuple[str, str], int] = {}
+    failures: list[str] = []
+    for line in lines:
+        try:
+            record = json.loads(line)
+        except ValueError:
+            continue
+        key = (str(record.get("operation")), str(record.get("outcome")))
+        counts[key] = counts.get(key, 0) + 1
+        if record.get("outcome") == "failed":
+            failures.append(f"  {record.get('timestamp')} {key[0]} {json.dumps(record.get('details'))[:200]}")
+    print(f"{args.component}: last {len(lines)} records")
+    for (operation, outcome), number in sorted(counts.items(), key=lambda kv: -kv[1])[:10]:
+        print(f"  {operation} {outcome} {number}")
+    if failures:
+        print("last failures:")
+        for failure in failures[-5:]:
+            print(failure)
+    return 0
+
+
 def _run(args: argparse.Namespace) -> int:
+    if args.command == "usage":
+        return _usage(args)
+    if args.command == "logs":
+        return _logs(args)
     if args.command == "agents":
         rows = registry.agents(args.env_file, os.environ, shutil.which)
         if args.json:

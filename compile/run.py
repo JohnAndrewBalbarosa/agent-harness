@@ -20,7 +20,7 @@ from pathlib import Path
 from adapters.claude import patches as claude_patches
 from adapters.codex import patches as codex_patches
 from compile.patch import merge_block, merge_codex_hooks, merge_env
-from compile.render import hooks_source, rulesync_config
+from compile.render import SKILL_NAME, hooks_source, rulesync_config, skill
 from core.config import Config, Instance, load
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -108,6 +108,10 @@ def _lock_path(cfg: Config, instance: Instance) -> Path:
     return cfg.harness_home / "var" / "compile" / f"{instance.agent}-{instance.name}{LOCK_FILE}"
 
 
+def _skill(cfg: Config, instance: Instance) -> list[Write]:
+    return _changed(instance.home / "skills" / SKILL_NAME / "SKILL.md", skill(cfg))
+
+
 def _plan_claude(sim: Path, project: Path, cfg: Config, instance: Instance, state: dict) -> list[Write]:
     sim_home = sim / f"claude-{instance.name}"
     (sim_home / ".claude").mkdir(parents=True)
@@ -125,7 +129,7 @@ def _plan_claude(sim: Path, project: Path, cfg: Config, instance: Instance, stat
     lock = _read(sim_home / ".claude" / LOCK_FILE)
     if lock is not None:
         writes += _changed(_lock_path(cfg, instance), lock)
-    return writes + _changed(instance.home / "CLAUDE.md", claude_md)
+    return writes + _changed(instance.home / "CLAUDE.md", claude_md) + _skill(cfg, instance)
 
 
 def codex_config(config_text: str, cfg: Config) -> str:
@@ -160,7 +164,7 @@ def _plan_codex(sim: Path, project: Path, cfg: Config, instances: list[Instance]
             new_config = codex_config(_read(instance.home / "config.toml") or "", cfg)
         except CompileError as error:
             raise CompileError(f"{instance.home / 'config.toml'}: {error}") from None
-        actions += _changed(instance.home / "config.toml", new_config)
+        actions += _changed(instance.home / "config.toml", new_config) + _skill(cfg, instance)
         target = instance.home / "AGENTS.md"
         if not (target.exists() and policy.exists() and os.path.samefile(target, policy)):
             actions.append(Link(target, policy))

@@ -30,6 +30,33 @@ def hooks_source(cfg: Config, manifests: Mapping[str, Mapping]) -> dict:
     return doc
 
 
+SKILL_NAME = "agent-harness"
+
+
+def skill(cfg: Config) -> str:
+    """On-demand skill (only its name and description stay in context) pointing agents at the packaged commands."""
+    cli = f'"{cfg.harness_home / "core" / "harness.cmd"}"'
+    return f"""---
+name: {SKILL_NAME}
+description: Token usage, harness logs, agent setup checks. Use before writing any ad-hoc script to read agent token usage, lifecycle logs, or to check whether an AI agent is set up for the harness.
+---
+
+# agent-harness commands
+
+Use these instead of writing one-off scripts (each prints a bounded summary):
+
+- `{cli} usage` — deterministic token report: Claude transcripts + Codex rollouts, cache vs uncached, by project,
+  tool-result bytes. `--json` for machine output.
+- `{cli} logs` — list lifecycle logs; `{cli} logs <component> [--tail N]` — outcome counts + last 5 failures
+  (components: hook-router, services, preflight, herdr-plugin, context-guard, ...).
+- `{cli} agents` — supported agents, CLI on PATH, subscribed instances.
+- `{cli} preflight <agent> [--init]` — supported / installed / subscribed / configured / working, one line;
+  exit code 0 ready, 10-15 failure.
+
+Never read whole log files; start from `logs <component>`.
+"""
+
+
 def _rtk_on_path() -> bool:
     """rtk rewrites commands to a bare `rtk <cmd>`: without `rtk` on PATH every Bash call would fail (exit 127)."""
     if shutil.which("rtk"):
