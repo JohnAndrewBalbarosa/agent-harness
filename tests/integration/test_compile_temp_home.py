@@ -80,8 +80,11 @@ class CompileTempHomeTests(unittest.TestCase):
 
     def test_rtk_bash_hook_reaches_both_agents_and_is_removed_when_disabled(self):
         import dataclasses
+        from unittest import mock
+        from compile import render
         on = dataclasses.replace(self.cfg, rtk_bin="rtk")
-        compile_run.compile_all(on, dry_run=False)
+        with mock.patch.object(render.shutil, "which", return_value="C:/bin/rtk.exe"):
+            compile_run.compile_all(on, dry_run=False)
         claude_pre = json.loads((self.claude / "settings.json").read_text(encoding="utf-8"))["hooks"]["PreToolUse"]
         codex_pre = json.loads((self.codex / "hooks.json").read_text(encoding="utf-8"))["hooks"]["PreToolUse"]
         for groups, agent in ((claude_pre, "claude"), (codex_pre, "codex")):

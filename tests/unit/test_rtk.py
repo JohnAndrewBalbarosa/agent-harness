@@ -25,11 +25,20 @@ class RtkConfigTests(unittest.TestCase):
 
 class RtkRenderTests(unittest.TestCase):
     def test_bash_pre_tool_use_hook_per_agent_when_enabled(self):
-        doc = render.hooks_source(with_rtk(), MANIFESTS)
+        from unittest import mock
+        with mock.patch.object(render.shutil, "which", return_value="C:/bin/rtk.exe"):
+            doc = render.hooks_source(with_rtk(), MANIFESTS)
         self.assertEqual(doc["claudecode"]["hooks"]["preToolUse"],
                          [{"matcher": "Bash", "command": "rtk hook claude", "timeout": 10}])
         self.assertEqual(doc["codexcli"]["hooks"]["preToolUse"],
                          [{"matcher": "Bash", "command": "rtk hook codex", "timeout": 10}])
+
+    def test_no_hook_when_bare_rtk_does_not_resolve_on_path(self):
+        # rtk rewrites commands to a bare `rtk <cmd>`; without it on PATH every Bash call would fail (exit 127).
+        from unittest import mock
+        with mock.patch.object(render.shutil, "which", return_value=None):
+            doc = render.hooks_source(with_rtk(), MANIFESTS)
+        self.assertNotIn("preToolUse", doc["claudecode"]["hooks"])
 
     def test_no_pre_tool_use_hook_when_disabled(self):
         doc = render.hooks_source(cfg(r"C:\nospace\ah"), MANIFESTS)
