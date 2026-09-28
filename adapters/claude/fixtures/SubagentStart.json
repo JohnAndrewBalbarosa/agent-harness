@@ -1,0 +1,8 @@
+{
+  "hook_event_name": "SubagentStart",
+  "session_id": "sess-claude-1",
+  "transcript_path": "C:/home/.claude/projects/demo/sess-claude-1.jsonl",
+  "cwd": "C:/work/demo",
+  "agent_id": "ab2bf5fbb7190fd00",
+  "agent_type": "general-purpose"
+}

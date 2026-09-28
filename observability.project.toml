@@ -1,0 +1,5 @@
+[project]
+id = "01a0d736-8ed8-76dc-9c20-c342229f9a82"
+name = "codex-system-harness"
+slug = "codex-system-harness"
+schema_version = 1

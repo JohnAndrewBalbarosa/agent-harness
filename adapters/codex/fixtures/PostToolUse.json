@@ -1,0 +1,20 @@
+{
+  "hook_event_name": "PostToolUse",
+  "cwd": "C:/work/demo",
+  "model": "gpt-5.6",
+  "permission_mode": "default",
+  "session_id": "sess-codex-1",
+  "transcript_path": "C:/home/.codex/sessions/rollout-demo.jsonl",
+  "turn_id": "turn-1",
+  "tool_name": "shell",
+  "tool_input": {
+    "command": [
+      "echo",
+      "hi"
+    ]
+  },
+  "tool_response": {
+    "output": "hi"
+  },
+  "tool_use_id": "call_1"
+}

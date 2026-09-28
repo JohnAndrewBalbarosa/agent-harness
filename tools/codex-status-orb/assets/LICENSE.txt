@@ -1,0 +1,7 @@
+service-bell.mp3
+
+Source: https://commons.wikimedia.org/wiki/File:Sound_Effect_-_Door_Bell.ogg
+Creator: Amada44
+License: Creative Commons CC0 1.0 Universal (public-domain dedication)
+
+The local MP3 is Wikimedia Commons' transcoded version of the original Ogg file.

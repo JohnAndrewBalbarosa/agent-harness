@@ -1,0 +1,7 @@
+{
+  "hook_event_name": "SessionEnd",
+  "cwd": "C:/work/demo",
+  "session_id": "sess-codex-1",
+  "transcript_path": "C:/home/.codex/sessions/rollout-demo.jsonl",
+  "reason": "exit"
+}

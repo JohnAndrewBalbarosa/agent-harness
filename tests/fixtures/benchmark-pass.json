@@ -1,0 +1,9 @@
+{
+  "catalog": "benchmarks/catalog/hybrid-2026.json",
+  "benchmark_id": "agent.acceptance_rate",
+  "profile": "personal",
+  "mode": "non-inferiority",
+  "baseline": [1,1,1,1,1,1,1,1,0,0,1,1,1,1,1,1,1,1,0,1,1,1,1,1,1,1,0,1,1,1],
+  "candidate": [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+}
+

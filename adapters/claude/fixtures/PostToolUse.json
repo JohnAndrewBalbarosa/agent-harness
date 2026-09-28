@@ -1,0 +1,13 @@
+{
+  "hook_event_name": "PostToolUse",
+  "session_id": "sess-claude-1",
+  "transcript_path": "C:/home/.claude/projects/demo/sess-claude-1.jsonl",
+  "cwd": "C:/work/demo",
+  "tool_name": "Bash",
+  "tool_input": {
+    "command": "echo hi"
+  },
+  "tool_response": {
+    "stdout": "hi"
+  }
+}

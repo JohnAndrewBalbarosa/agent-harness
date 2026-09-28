@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "enums": {
+    "reference_type": ["normative_standard", "recognized_benchmark", "peer_baseline", "internal_slo"],
+    "evaluation_method": ["conformance", "exact_binomial", "one_sample_t", "external"],
+    "hypothesis_mode": ["non_inferiority", "superiority", "equivalence"],
+    "aggregation": ["mean", "median", "sum", "min", "max", "latest", "proportion"],
+    "direction": ["higher", "lower", "exact"],
+    "provenance_kind": ["hook", "manual", "external_suite"]
+  },
+  "reference_catalog": [
+    {
+      "key": "nist-ai-rmf-measure",
+      "tier": "normative_standard",
+      "issuer": "NIST",
+      "title": "AI RMF 1.0 Measure function",
+      "version": "NIST AI 100-1",
+      "url": "https://airc.nist.gov/airmf-resources/airmf/5-sec-core/",
+      "automatic_enrollment": false
+    },
+    {
+      "key": "dora-delivery-metrics",
+      "tier": "recognized_benchmark",
+      "issuer": "DORA",
+      "title": "Software delivery performance metrics",
+      "version": "current-primary-source",
+      "url": "https://dora.dev/guides/dora-metrics/",
+      "automatic_enrollment": false
+    },
+    {
+      "key": "swe-bench",
+      "tier": "recognized_benchmark",
+      "issuer": "SWE-bench",
+      "title": "SWE-bench",
+      "version": "project-selected-release-or-commit",
+      "url": "https://github.com/SWE-bench/SWE-bench",
+      "automatic_enrollment": false
+    }
+  ],
+  "core_metric_catalog": [
+    {"key": "verified_outcome_rate", "unit": "proportion", "direction": "higher", "extractor": null},
+    {"key": "change_failure_rate", "unit": "proportion", "direction": "lower", "extractor": "change_failure_rate"},
+    {"key": "successful_cycle_time_ms", "unit": "millisecond", "direction": "lower", "extractor": "successful_cycle_time_ms"},
+    {"key": "tokens_per_verified_outcome", "unit": "token", "direction": "lower", "extractor": null},
+    {"key": "cost_per_verified_outcome", "unit": "currency", "direction": "lower", "extractor": null},
+    {"key": "observability_completeness_rate", "unit": "proportion", "direction": "higher", "extractor": "observability_completeness_rate"}
+  ],
+  "cli": {
+    "init": [["--spec", "required"], ["--approval-prompt-id", "required"]],
+    "status": [],
+    "observe": [["--program", "required"], ["--metric", "required"], ["--value", "required"], ["--observed-at", "optional"], ["--provenance-kind", "choice:provenance_kind"], ["--provenance-locator", "required"], ["--evidence-sha256", "optional"], ["--environment-fingerprint", "optional"], ["--not-comparable", "flag"], ["--execution-id", "optional"], ["--prompt-id", "optional"]],
+    "import": [["--adapter", "choices:core,generic-json"], ["--file", "required"], ["--program", "required"]],
+    "evaluate": [["--program", "optional"], ["--from", "optional"], ["--to", "optional"], ["--environment-fingerprint", "optional"]],
+    "report": [["--program", "optional"], ["--format", "choices:text,json"]],
+    "reference.check": [["--program", "optional"]]
+  }
+}

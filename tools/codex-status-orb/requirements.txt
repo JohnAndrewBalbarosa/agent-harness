@@ -1,0 +1,7 @@
+pystray==0.19.5
+Pillow==12.3.0
+psutil==7.2.2
+pywin32==312
+pytest==9.1.1
+watchdog==6.0.0
+pywinauto==0.6.9

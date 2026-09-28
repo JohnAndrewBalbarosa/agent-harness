@@ -1,0 +1,157 @@
+# Codex Observability Hub
+
+A Windows-first, local-only observability stack for **Codex**. It captures Codex
+lifecycle events, correlates prompts, tool activity, executions, code versions,
+and runtime logs, and keeps a bounded SQLite WAL spool when PostgreSQL is offline.
+
+This package is intentionally scoped to Codex. It has not been tested with other
+AI coding agents.
+
+## What is included
+
+- Codex hooks for `SessionStart`, `UserPromptSubmit`, `PostToolUse`, `Stop`, and
+  `SessionEnd`
+- a loopback Fastify service and PostgreSQL schema/migrations
+- a bounded local SQLite WAL fallback and dead-letter handling
+- `obs.cmd` commands for registration, events, errors, traces, diagnosis, prompt
+  enrichment, runtime ingestion, and spool flushing
+- Python and JavaScript structured-logging SDKs
+- a reusable detached-command supervisor with bounded progress events
+- full and token-lean `AGENTS.md` templates
+- a bounded, redacting browser-extension logger example
+
+The database compatibility table is named `daily_rollups`. In user-facing terms,
+it is a **one-day log rollup**: it groups one day's logs by event type, severity,
+and outcome; it does not necessarily collapse the entire day into one row.
+
+## Requirements
+
+- Codex on Windows
+- PowerShell 7 or Windows PowerShell 5.1
+- Python 3.11+
+- Node.js 20+
+- Docker Desktop with Docker Compose
+
+## Install
+
+Clone the repository, review `templates/AGENTS.minimal.md`, then run:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\setup.ps1 -GlobalInstructions Minimal
+```
+
+The setup script generates a random local PostgreSQL credential in ignored
+`.env`, installs locked Node dependencies, adds the lifecycle hooks to
+`%USERPROFILE%\.codex\hooks.json`, starts the local service, and leaves existing
+global instructions untouched unless you explicitly select a template.
+
+If you already have `%USERPROFILE%\.codex\AGENTS.md`, omit
+`-GlobalInstructions` and merge the reviewed template manually. To install the
+longer policy template, use `-GlobalInstructions Full`. `-ForceInstructions`
+backs up an existing file before replacement.
+
+Restart Codex after installing hooks.
+
+## CLI
+
+```powershell
+.\obs.cmd project register --init
+.\obs.cmd prompt enrich --summary "Short summary" --intent "Goal" --target "Subsystem"
+.\obs.cmd event emit --code build.succeeded --outcome 1
+.\obs.cmd errors
+.\obs.cmd diagnose ERROR_GROUP_ID
+.\obs.cmd trace TRACE_ID
+.\obs.cmd runtime ingest --file PATH_TO_JSONL --match '"event"'
+.\obs.cmd change plan --kind code --class routine --estimated-lines 10 --estimated-files 1
+.\obs.cmd change finish --outcome success --lines-added 8 --lines-deleted 2 --files-changed 1 --threshold 5
+.\obs.cmd change package --delivery-mode pull-request --pr-url URL --confirm-policy-reviewed
+.\obs.cmd git check --threshold 5
+.\obs.cmd git squash --message "Consolidate local Codex changes" `
+  --expected-head HEAD_FROM_CHECK --confirm-all-local-related
+```
+
+Add this repository directory to `PATH` if you want `obs.cmd` available from any
+project.
+
+## Git commit counter and safe squash
+
+`obs.cmd git check` derives its counter from the configured GitHub upstream's
+current local tracking ref. It reports commits ahead/behind, counts unpushed
+commits that contain code, tests, migrations, or configuration changes, and
+recommends a push at the default threshold of five code commits. Documentation-
+only and media-only commits do not increment the counter. A successful push
+resets the derived count because those commits are no longer ahead of upstream.
+
+`obs.cmd git squash` only rewrites commits that have not reached the upstream.
+It refuses dirty worktrees, missing/non-GitHub upstreams, and branches that are
+behind or diverged. It also requires the reviewed HEAD from `git check` and an
+explicit confirmation that every unpushed commit is related to the same work.
+Before a soft squash it creates a recoverable ref under
+`refs/codex-observability/pre-squash/`. It never pushes or force-pushes; a normal
+push remains a separate, visible action after verification. Fetch before the
+check when an up-to-date remote comparison is required.
+
+Because the counter is derived from Git rather than a manually incremented
+number, every Codex account using the same worktree and branch sees the same
+value without another database table or mutable counter file. The stable project
+UUID remains available for correlation in the observability hub.
+
+## Prompt change counter and packaging directive
+
+`obs.cmd change plan` records one prompt-level change assessment before
+implementation. `change finish` idempotently counts only successful
+code-changing prompts and derives the un-packaged count from the local SQLite
+WAL. Personal, CY, and FEU sessions therefore share one value per stable project
+UUID and delivery stream.
+
+The deterministic classes are Routine (1–15 changed lines and one file),
+Moderate (16–50 lines or two–three files), Substantial (51+ lines or four+ files),
+plus a High-risk override. At five, `change finish` returns `PACKAGE_NOW`; the
+current agent must apply the active global→project→nested `AGENTS.md` cascade.
+The command never creates a branch, pushes, opens, approves, or merges a pull
+request. After the authorized local/push/PR packaging succeeds, `change package`
+closes the batch and always reports `mergeAuthorized: false`.
+
+## Data model and privacy
+
+The identity graph is:
+
+```text
+project -> session -> prompt -> execution -> event/error
+```
+
+Each registered project gets a stable UUID and filtered PostgreSQL views in a
+deterministic `project_<uuid>` schema. Canonical rows remain normalized rather
+than duplicated.
+
+Raw capture can include exact prompts, assistant results, tool inputs/outputs,
+paths, and application payloads. Treat the local database as sensitive. The
+repository excludes all runtime databases, SQLite spools, logs, keys, `.env`
+files, dependency folders, and machine-specific configuration. The server and
+database ports bind to `127.0.0.1` by default.
+
+See [SECURITY.md](SECURITY.md) before changing network bindings or retention.
+
+## Runtime SDKs
+
+`sdk/python.py` and `sdk/javascript.mjs` send bounded, redacted events without
+blocking application work. `examples/browser-extension-logger.js` shows a
+500-entry local browser logger with secret-field and bearer-token redaction.
+
+## Verify
+
+```powershell
+python -m unittest discover -s tests -v
+npm test
+Invoke-RestMethod http://127.0.0.1:4319/health
+```
+
+## Official Codex references
+
+- [Custom instructions with AGENTS.md](https://learn.chatgpt.com/docs/agent-configuration/agents-md)
+- [Codex hooks](https://learn.chatgpt.com/docs/hooks)
+
+## License
+
+MIT. The optional `codex-cli-notify` integration is a separate third-party
+project and is not vendored here.

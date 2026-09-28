@@ -1,0 +1,10 @@
+{
+  "hook_event_name": "UserPromptSubmit",
+  "cwd": "C:/work/demo",
+  "model": "gpt-5.6",
+  "permission_mode": "default",
+  "session_id": "sess-codex-1",
+  "transcript_path": "C:/home/.codex/sessions/rollout-demo.jsonl",
+  "turn_id": "turn-1",
+  "prompt": "ayusin ang bug ñ"
+}

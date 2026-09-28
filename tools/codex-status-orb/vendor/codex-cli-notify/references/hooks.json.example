@@ -1,0 +1,45 @@
+{
+  "hooks": {
+    "PermissionRequest": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$HOME/.codex/hooks/codex-cli-notify/scripts/codex_cli_notify.py\" --config \"$HOME/.codex/codex-cli-notify.json\"",
+            "commandWindows": "py -3 \"%USERPROFILE%\\.codex\\hooks\\codex-cli-notify\\scripts\\codex_cli_notify.py\" --config \"%USERPROFILE%\\.codex\\codex-cli-notify.json\"",
+            "timeout": 600,
+            "statusMessage": "Codex CLI Notify"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$HOME/.codex/hooks/codex-cli-notify/scripts/codex_cli_notify.py\" --config \"$HOME/.codex/codex-cli-notify.json\"",
+            "commandWindows": "py -3 \"%USERPROFILE%\\.codex\\hooks\\codex-cli-notify\\scripts\\codex_cli_notify.py\" --config \"%USERPROFILE%\\.codex\\codex-cli-notify.json\"",
+            "timeout": 5,
+            "statusMessage": "Codex CLI Notify"
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$HOME/.codex/hooks/codex-cli-notify/scripts/codex_cli_notify.py\" --config \"$HOME/.codex/codex-cli-notify.json\"",
+            "commandWindows": "py -3 \"%USERPROFILE%\\.codex\\hooks\\codex-cli-notify\\scripts\\codex_cli_notify.py\" --config \"%USERPROFILE%\\.codex\\codex-cli-notify.json\"",
+            "timeout": 5,
+            "statusMessage": "Codex CLI Notify"
+          }
+        ]
+      }
+    ]
+  }
+}

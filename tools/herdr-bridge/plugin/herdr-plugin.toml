@@ -1,0 +1,19 @@
+id = "agent-harness.herdr-bridge"
+name = "Shared Codex Runtime"
+version = "0.1.0"
+min_herdr_version = "0.9.1"
+description = "Shared status, observability, context, and safe Codex workflow actions."
+platforms = ["windows"]
+
+[[actions]]
+id = "focus-priority"
+title = "Focus priority Codex agent"
+contexts = ["workspace", "pane"]
+command = ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "focus-priority.ps1"]
+
+[[panes]]
+id = "dashboard"
+title = "Shared Codex dashboard"
+placement = "tab"
+command = ["powershell.exe", "-NoExit", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "dashboard.ps1"]
+

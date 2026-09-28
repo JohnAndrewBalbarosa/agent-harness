@@ -1,0 +1,15 @@
+[defaults]
+mode = "non-inferiority"
+minimum_samples = 30
+alpha = 0.05
+
+[[benchmark]]
+id = "agent.acceptance_rate"
+target = 0.90
+margin = 0.05
+
+[[benchmark]]
+id = "swebench.resolved_rate"
+mode = "superiority"
+target = 0.50
+margin = 0.03

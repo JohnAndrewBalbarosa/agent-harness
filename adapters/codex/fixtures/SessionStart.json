@@ -1,0 +1,9 @@
+{
+  "hook_event_name": "SessionStart",
+  "cwd": "C:/work/demo",
+  "model": "gpt-5.6",
+  "permission_mode": "default",
+  "session_id": "sess-codex-1",
+  "transcript_path": "C:/home/.codex/sessions/rollout-demo.jsonl",
+  "source": "startup"
+}

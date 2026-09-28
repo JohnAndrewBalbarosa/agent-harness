@@ -1,0 +1,7 @@
+{
+  "hook_event_name": "UserPromptSubmit",
+  "session_id": "sess-claude-1",
+  "transcript_path": "C:/home/.claude/projects/demo/sess-claude-1.jsonl",
+  "cwd": "C:/work/demo",
+  "prompt": "gawin mo na ñ 🙂"
+}

@@ -1,0 +1,20 @@
+name: verify
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+      - uses: astral-sh/setup-uv@v6
+      - run: uv run --with scipy==1.18.1 python -m unittest discover -s tests -t . -v
+      - shell: pwsh
+        run: ./tests/test_installer.ps1
+      - shell: pwsh
+        run: ./scripts/verify-secrets.ps1

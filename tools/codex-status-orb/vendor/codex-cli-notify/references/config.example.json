@@ -1,0 +1,37 @@
+{
+  "events": ["PermissionRequest", "Stop", "SubagentStop"],
+  "log_path": "~/.codex/codex-cli-notify.log",
+  "encoding": "utf-8",
+  "language": "auto",
+  "message_max_chars": 360,
+  "windows": {
+    "enabled": true,
+    "mode": "overlay",
+    "duration_ms": 6500,
+    "width": 440,
+    "margin": 24,
+    "position": "bottom-right",
+    "color_mode": "accent",
+    "opacity": 0.96,
+    "colors": {
+      "PermissionRequest": "#F59E0B",
+      "Stop": "#22C55E",
+      "SubagentStop": "#3B82F6",
+      "default": "#64748B"
+    },
+    "permission_actions": {
+      "enabled": true,
+      "timeout_seconds": 300,
+      "timeout_choice": "defer",
+      "close_choice": "defer",
+      "deny_message": "Denied from the Codex local permission toast.",
+      "button_labels": {
+        "allow": "Allow once",
+        "deny": "Deny",
+        "defer": "Use CLI prompt"
+      }
+    }
+  },
+  "macos": {"enabled": true},
+  "linux": {"enabled": true, "notify_send_path": "notify-send"}
+}

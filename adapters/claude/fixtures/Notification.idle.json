@@ -1,0 +1,8 @@
+{
+  "hook_event_name": "Notification",
+  "session_id": "sess-claude-1",
+  "transcript_path": "C:/home/.claude/projects/demo/sess-claude-1.jsonl",
+  "cwd": "C:/work/demo",
+  "message": "Claude is waiting for your input",
+  "notification_type": "idle_prompt"
+}

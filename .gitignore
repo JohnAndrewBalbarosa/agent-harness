@@ -1,0 +1,9 @@
+.env
+var/
+**/__pycache__/
+**/.venv/
+*.bak-*
+*.log
+*.sqlite3*
+node_modules/
+.superpowers/

@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "suite": "hybrid-2026",
+  "version": "2026-09-25",
+  "defaults": { "alpha": 0.05, "minimum_samples": 30, "mode": "non-inferiority" },
+  "sources": [
+    { "id": "dora", "url": "https://dora.dev/guides/dora-metrics/", "published": "2024-01-01", "retrieved": "2026-09-25" },
+    { "id": "openai-evals", "url": "https://platform.openai.com/docs/guides/evaluation-best-practices", "published": "2026-01-01", "retrieved": "2026-09-25" },
+    { "id": "swe-bench", "url": "https://www.swebench.com/SWE-bench/", "published": "2024-01-01", "retrieved": "2026-09-25" }
+  ],
+  "benchmarks": [
+    { "id": "agent.acceptance_rate", "category": "agent-quality", "measure": "proportion", "direction": "higher", "margin": 0.05, "reference": "local-calibrated", "required": true },
+    { "id": "agent.escaped_regression_rate", "category": "agent-quality", "measure": "proportion", "direction": "lower", "margin": 0.02, "reference": "local-calibrated", "required": true },
+    { "id": "agent.rework_rate", "category": "agent-quality", "measure": "proportion", "direction": "lower", "margin": 0.02, "reference": "local-calibrated", "required": true },
+    { "id": "agent.tool_failure_rate", "category": "agent-reliability", "measure": "proportion", "direction": "lower", "margin": 0.02, "reference": "local-calibrated", "required": false },
+    { "id": "agent.completion_latency_ms", "category": "agent-efficiency", "measure": "continuous", "direction": "lower", "margin": 0.10, "margin_kind": "relative", "reference": "local-calibrated", "required": false },
+    { "id": "agent.tokens_per_accepted_task", "category": "agent-efficiency", "measure": "continuous", "direction": "lower", "margin": 0.10, "margin_kind": "relative", "reference": "local-calibrated", "required": false },
+    { "id": "dora.change_lead_time", "category": "delivery", "measure": "continuous", "direction": "lower", "margin": 0.10, "margin_kind": "relative", "reference": "dora", "required": false },
+    { "id": "dora.deployment_frequency", "category": "delivery", "measure": "continuous", "direction": "higher", "margin": 0.10, "margin_kind": "relative", "reference": "dora", "required": false },
+    { "id": "dora.failed_deployment_recovery_time", "category": "delivery", "measure": "continuous", "direction": "lower", "margin": 0.10, "margin_kind": "relative", "reference": "dora", "required": false },
+    { "id": "dora.change_fail_rate", "category": "delivery", "measure": "proportion", "direction": "lower", "margin": 0.02, "reference": "dora", "required": false },
+    { "id": "dora.deployment_rework_rate", "category": "delivery", "measure": "proportion", "direction": "lower", "margin": 0.02, "reference": "dora", "required": false }
+    ,{ "id": "eval.task_score", "category": "task-eval", "measure": "continuous", "direction": "higher", "margin": 0.05, "margin_kind": "relative", "reference": "openai-evals", "required": false }
+    ,{ "id": "swebench.resolved_rate", "category": "task-eval", "measure": "proportion", "direction": "higher", "margin": 0.05, "reference": "swe-bench", "required": false }
+  ]
+}

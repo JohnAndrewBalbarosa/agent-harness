@@ -1,0 +1,5 @@
+agent = "claude"
+rulesync_target = "claudecode"
+events = ["SessionStart", "UserPromptSubmit", "PostToolUse", "Stop", "SubagentStart", "SubagentStop", "SessionEnd", "Notification"]
+tested_versions = ["2.1.283"]
+otel_service_names = ["claude-code"]  # prefix match

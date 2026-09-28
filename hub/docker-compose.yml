@@ -1,0 +1,30 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: codex-observability-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: observability
+      POSTGRES_USER: observability
+      POSTGRES_PASSWORD: local-observability-only
+    ports:
+      - "127.0.0.1:55432:5432"
+    volumes:
+      - codex-observability-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U observability -d observability"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+  mongodb:
+    image: mongodb/mongodb-community-server:7.0-ubi9
+    container_name: codex-observability-mongodb
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:27017:27017"
+    volumes:
+      - codex-technology-memory:/data/db
+
+volumes:
+  codex-observability-data:
+  codex-technology-memory:
