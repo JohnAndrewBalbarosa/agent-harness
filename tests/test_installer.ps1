@@ -97,5 +97,8 @@ try {
   [pscustomobject]@{ syntax = 'passed'; dry_run = 'passed'; install = 'passed'; reinstall = 'passed'; router = 'passed'; portable_sources = 'passed' } | ConvertTo-Json -Compress
 } finally {
   $savedHerdr | ForEach-Object { Set-Item -LiteralPath ("env:" + $_.Name) -Value $_.Value }
+  # Consumers may leave detached helpers (e.g. the obs spool flush) running from the temp install.
+  Get-CimInstance Win32_Process | Where-Object { $_.ProcessId -ne $PID -and $_.CommandLine -and $_.CommandLine.Contains($work) } |
+    ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
   if (Test-Path -LiteralPath $work) { Remove-Item -LiteralPath $work -Recurse -Force }
 }
