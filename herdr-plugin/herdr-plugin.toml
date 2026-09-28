@@ -1,0 +1,15 @@
+id = "agent-harness"
+name = "agent-harness"
+version = "0.1.0"
+min_herdr_version = "0.9.1"
+description = "Agent-agnostic harness: launch preflight for every detected agent, harness services, notifications."
+platforms = ["windows"]
+
+# Herdr server start: keep the usage receiver, console monitor and observability hub running.
+[[startup]]
+command = ["cmd.exe", "/d", "/c", "on-event.cmd", "services"]
+
+# Every agent Herdr detects: supported? installed? subscribed? configured? working? (auto-init when possible)
+[[events]]
+on = "pane.agent_detected"
+command = ["cmd.exe", "/d", "/c", "on-event.cmd", "agent-detected"]

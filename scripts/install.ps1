@@ -18,7 +18,7 @@ $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $Destination = [IO.Path]::GetFullPath($Destination)
 $installId = [DateTime]::UtcNow.ToString('yyyyMMddTHHmmssZ')
-$codeDirs = @('core', 'adapters', 'compile', 'tools')
+$codeDirs = @('core', 'adapters', 'compile', 'tools', 'herdr-plugin')
 
 function Write-Event([string]$Code, [string]$Outcome, [hashtable]$Data = @{}) {
   $event = [ordered]@{ timestamp = [DateTime]::UtcNow.ToString('o'); component = 'installer'; operation = $Code; correlation_id = $installId; outcome = $Outcome; data = $Data }
