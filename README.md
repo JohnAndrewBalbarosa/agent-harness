@@ -82,6 +82,11 @@ history and transcripts; router and consumer lifecycle logs live in `var\logs\`.
 Validated tasks default to non-inferiority. Fewer than 30 valid samples always reports `insufficient_data`; only a
 statistically confirmed regression can block packaging or push.
 
+| Evidence (2026-09-29) | Result |
+|---|---|
+| [Windows verification CI](https://github.com/JohnAndrewBalbarosa/agent-harness/actions/runs/36411974575) on `cc27a89` | Passed the repository's unit, conformance, integration, installer, and secret-scan workflow. This validates that commit, not later local commits. |
+| Harness versus baseline on accepted tasks, latency, or token cost | Not measured. The benchmark catalog defines metrics, but this project has no active benchmark program or paired samples. No performance advantage is claimed. |
+
 ```powershell
 & "$env:USERPROFILE\.agent-harness\tools\observability-client\obs.cmd" benchmark catalog verify
 & "$env:USERPROFILE\.agent-harness\tools\observability-client\obs.cmd" benchmark evaluate --profile personal --window 30 --format table
