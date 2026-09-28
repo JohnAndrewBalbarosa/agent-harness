@@ -4,6 +4,7 @@
   preflight <agent> [--instance N] [--init] launch check (spec §4.5a); prints one line, exit code = verdict
   usage [--json]                            deterministic token report (Claude transcripts, Codex rollouts)
   logs [<component>] [--tail N]             bounded lifecycle-log summary: outcome counts + last failures
+  image <file> [--max-edge 1024]            downscaled copy of a screenshot to read instead (prints its path)
 Common options: --env-file PATH (default <HARNESS_HOME>/.env), --log-dir PATH (default <HARNESS_HOME>/var/logs)
 """
 from __future__ import annotations
@@ -38,6 +39,10 @@ def _parser() -> argparse.ArgumentParser:
     logs = commands.add_parser("logs", parents=[common])
     logs.add_argument("component", nargs="?")
     logs.add_argument("--tail", type=int, default=500)
+    shrink = commands.add_parser("image", parents=[common])
+    shrink.add_argument("file", type=Path)
+    shrink.add_argument("--max-edge", type=int, default=1024)
+    shrink.add_argument("--cache-dir", type=Path, default=ROOT / "var" / "images")
     return parser
 
 
@@ -102,6 +107,10 @@ def _logs(args: argparse.Namespace) -> int:
 
 
 def _run(args: argparse.Namespace) -> int:
+    if args.command == "image":
+        from core import image
+        print(image.downscale(args.file, args.max_edge, args.cache_dir))
+        return 0
     if args.command == "usage":
         return _usage(args)
     if args.command == "logs":

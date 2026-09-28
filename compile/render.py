@@ -52,6 +52,8 @@ Use these instead of writing one-off scripts (each prints a bounded summary):
 - `{cli} agents` — supported agents, CLI on PATH, subscribed instances.
 - `{cli} preflight <agent> [--init]` — supported / installed / subscribed / configured / working, one line;
   exit code 0 ready, 10-15 failure.
+- `{cli} image <file>` — before reading a screenshot or large image, run this and read the path it prints
+  (downscaled to 1024 px long edge; images stay in context for the rest of the session).
 
 Never read whole log files; start from `logs <component>`.
 """

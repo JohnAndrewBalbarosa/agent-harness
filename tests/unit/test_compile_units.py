@@ -49,7 +49,7 @@ class SkillTests(unittest.TestCase):
         text = render.skill(cfg(r"C:\Users\Juan dela Cruz\.agent-harness"))
         self.assertTrue(text.startswith("---\nname: agent-harness\ndescription: "))
         self.assertIn(r'"C:\Users\Juan dela Cruz\.agent-harness\core\harness.cmd" usage', text)
-        for command in ("usage", "logs", "agents", "preflight"):
+        for command in ("usage", "logs", "agents", "preflight", "image"):
             self.assertIn(f" {command}", text)
 
 
