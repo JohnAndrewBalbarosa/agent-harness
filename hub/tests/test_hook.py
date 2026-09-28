@@ -173,5 +173,17 @@ class HookLifecycleTests(unittest.TestCase):
         self.assertEqual(finished["data"]["rawResult"], "exact assistant result")
 
 
+class ToolAnalyticsTests(unittest.TestCase):
+    def test_tool_record_redacts_payload_and_preserves_explicit_signals(self):
+        record = hook.tool_analytics({"tool_use_id":"tool-1","tool_response":{"is_error":True,"secret":"private"},
+                                      "duration_ms":17}, "mcp__calendar__list", "2026-09-29T00:00:00Z")
+        self.assertEqual((record["toolUseId"],record["origin"],record["durationMs"],record["failed"]),
+                         ("tool-1","mcp",17,True))
+        self.assertEqual(record["cacheStatus"], "unknown")
+        self.assertNotIn("private", str(record))
+        cached = hook.tool_analytics({"tool_response":{"cache_hit":True}}, "harness.cache", "2026-09-29T00:00:00Z")
+        self.assertEqual((cached["cacheHit"],cached["cacheStatus"]), (True,"hit"))
+
+
 if __name__ == "__main__":
     unittest.main()

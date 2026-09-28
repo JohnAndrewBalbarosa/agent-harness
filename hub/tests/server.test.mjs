@@ -20,6 +20,18 @@ test("schema contains the complete correlation graph", async () => {
   assert.match(rollupSql,/schema_version integer/);
 });
 
+test("analytics schema uses native IDs and keeps unknown cache distinct", async () => {
+  const sql = await readFile(new URL("../migrations/007_usage_tool_analytics.sql",import.meta.url),"utf8");
+  for (const table of ["prompt_native_turns","turn_usage","tool_uses"]) {
+    assert.match(sql,new RegExp(`CREATE TABLE IF NOT EXISTS ${table}\\b`));
+  }
+  assert.match(sql,/cache_status varchar\(16\).*DEFAULT 'unknown'/);
+  const source = await readFile(new URL("../src/server.mjs",import.meta.url),"utf8");
+  assert.match(source,/case "turn-usage.record"/);
+  assert.match(source,/case "tool-use.record"/);
+  assert.match(source,/\/v1\/projects\/:projectId\/analytics/);
+});
+
 test("server redacts authorization and raw prompt fields", async () => {
   const source = await readFile(new URL("../src/server.mjs",import.meta.url),"utf8");
   assert.match(source,/req\.headers\.authorization/);

@@ -876,6 +876,9 @@ def main() -> int:
     emit.add_argument("--retryable", action="store_true")
     errors = sub.add_parser("errors")
     errors.add_argument("--project")
+    analytics = sub.add_parser("analytics")
+    analytics.add_argument("--project")
+    analytics.add_argument("--days", type=int, default=7)
     trace = sub.add_parser("trace")
     trace.add_argument("trace_id")
     diagnose = sub.add_parser("diagnose")
@@ -954,6 +957,11 @@ def main() -> int:
         project_id = args.project or (project_config()[1]["project"]["id"] if project_config() else None)
         if not project_id: raise SystemExit("Project ID is required.")
         query(f"/v1/projects/{project_id}/errors")
+    elif args.command == "analytics":
+        project_id = args.project or (project_config()[1]["project"]["id"] if project_config() else None)
+        if not project_id: raise SystemExit("Project ID is required.")
+        if not 1 <= args.days <= 30: raise SystemExit("Days must be between 1 and 30.")
+        query(f"/v1/projects/{project_id}/analytics?days={args.days}")
     elif args.command == "trace": query(f"/v1/traces/{args.trace_id}")
     elif args.command == "diagnose": query(f"/v1/errors/{args.error_group_id}")
     elif args.command == "context":

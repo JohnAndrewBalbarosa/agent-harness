@@ -17,6 +17,8 @@ def map(attrs: Mapping[str, Any]) -> dict | None:
     if attrs.get("event.name") not in API_REQUEST_EVENTS:
         return None
     request_id = str(attrs.get("request_id") or attrs.get("client_request_id") or "")
+    if not request_id:
+        return None  # An absent request ID cannot be deduplicated safely.
     cache_read = count(attrs.get("cache_read_tokens"))
     return {
         "usageId": str(uuid.uuid5(uuid.NAMESPACE_URL, f"claude-otel:{request_id}")),

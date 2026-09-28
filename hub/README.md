@@ -59,6 +59,7 @@ Restart Codex after installing hooks.
 .\obs.cmd prompt enrich --summary "Short summary" --intent "Goal" --target "Subsystem"
 .\obs.cmd event emit --code build.succeeded --outcome 1
 .\obs.cmd errors
+.\obs.cmd analytics --days 7
 .\obs.cmd diagnose ERROR_GROUP_ID
 .\obs.cmd trace TRACE_ID
 .\obs.cmd runtime ingest --file PATH_TO_JSONL --match '"event"'
@@ -69,6 +70,8 @@ Restart Codex after installing hooks.
 .\obs.cmd git squash --message "Consolidate local Codex changes" `
   --expected-head HEAD_FROM_CHECK --confirm-all-local-related
 ```
+
+`analytics` returns at most 100 prompt usage rows and 100 tool groups for a 1–30 day window. Prompt totals prefer exact transcript hook records over OTel records for the same prompt, so the two sources are not added together. A native session and turn ID must match the recorded prompt link; otherwise usage remains unlinked. Tool `duration_ms`, failure, and cache status remain unknown when the hook has no explicit signal. Only explicit cache signals from harness-owned tools count as hits or misses; model cached input tokens are separate.
 
 Add this repository directory to `PATH` if you want `obs.cmd` available from any
 project.

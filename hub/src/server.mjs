@@ -32,7 +32,7 @@ const jsonArray = (value) => Array.isArray(value) ? value : [];
 const jsonObject = (value) => value && typeof value === "object" && !Array.isArray(value) ? value : {};
 
 async function migrate() {
-  for (const migration of ["001_initial.sql", "002_raw_records_and_project_schemas.sql", "003_one_day_log_rollup_view.sql", "004_prompt_change_assessments.sql"]) {
+  for (const migration of ["001_initial.sql", "002_raw_records_and_project_schemas.sql", "003_one_day_log_rollup_view.sql", "004_prompt_change_assessments.sql", "007_usage_tool_analytics.sql"]) {
     await pool.query(await readFile(join(root, "migrations", migration), "utf8"));
   }
   const existing = await pool.query("SELECT project_id FROM projects ORDER BY project_id");
@@ -50,7 +50,7 @@ function projectSchemaName(projectId) {
 async function ensureProjectSchema(client, projectId) {
   const schema = projectSchemaName(projectId);
   const project = `'${String(projectId).toLowerCase()}'::uuid`;
-  const expectedSchemaVersion = 4;
+  const expectedSchemaVersion = 7;
   const registered = await client.query("SELECT schema_version FROM project_schemas WHERE project_id=$1", [projectId]);
   if (registered.rows[0]?.schema_version >= expectedSchemaVersion) return schema;
   await client.query(`CREATE SCHEMA IF NOT EXISTS ${schema}`);
@@ -60,6 +60,9 @@ async function ensureProjectSchema(client, projectId) {
     project_context_versions: `SELECT * FROM project_context_versions WHERE project_id=${project}`,
     sessions: `SELECT * FROM sessions WHERE project_id=${project}`,
     prompt_nodes: `SELECT p.* FROM prompt_nodes p JOIN sessions s USING(session_id) WHERE s.project_id=${project}`,
+    prompt_native_turns: `SELECT * FROM prompt_native_turns WHERE project_id=${project}`,
+    turn_usage: `SELECT * FROM turn_usage WHERE project_id=${project}`,
+    tool_uses: `SELECT * FROM tool_uses WHERE project_id=${project}`,
     code_versions: `SELECT * FROM code_versions WHERE project_id=${project}`,
     executions: `SELECT * FROM executions WHERE project_id=${project}`,
     change_attributions: `SELECT a.* FROM change_attributions a JOIN executions x USING(execution_id) WHERE x.project_id=${project}`,
@@ -149,6 +152,34 @@ async function applyOperation(client, operation) {
     case "prompt.finish":
       await client.query("UPDATE prompt_nodes SET status=$2,result_summary=CASE WHEN $3='' THEN result_summary ELSE $3 END,raw_result=$4,completed_at=$5 WHERE prompt_id=$1",
         [d.promptId,d.status || 2,text(d.resultSummary),String(d.rawResult ?? ""),operation.occurredAt]);
+      break;
+    case "prompt.native-link":
+      if (d.nativeSession && d.nativeTurn) {
+        await client.query(`INSERT INTO prompt_native_turns(project_id,native_session,native_turn,prompt_id) VALUES($1,$2,$3,$4)
+          ON CONFLICT(project_id,native_session,native_turn) DO NOTHING`,
+          [d.projectId,text(d.nativeSession,240),text(d.nativeTurn,240),d.promptId]);
+        await client.query(`UPDATE turn_usage SET prompt_id=$4 WHERE project_id=$1 AND native_session=$2 AND native_turn=$3 AND prompt_id IS NULL`,
+          [d.projectId,text(d.nativeSession,240),text(d.nativeTurn,240),d.promptId]);
+      }
+      break;
+    case "turn-usage.record": {
+      const prompt = d.nativeTurn ? await client.query(`SELECT prompt_id FROM prompt_native_turns WHERE project_id=$1 AND native_session=$2 AND native_turn=$3`,
+        [d.projectId,text(d.nativeSession,240),text(d.nativeTurn,240)]) : { rows: [] };
+      await client.query(`INSERT INTO turn_usage(usage_id,project_id,prompt_id,native_session,native_turn,source,source_event_id,input_tokens,output_tokens,cached_input_tokens,reasoning_tokens,availability,recorded_at)
+        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) ON CONFLICT DO NOTHING`,
+        [d.usageId,d.projectId,prompt.rows[0]?.prompt_id || null,text(d.nativeSession,240),d.nativeTurn ? text(d.nativeTurn,240) : null,
+         text(d.source,120),d.sourceEventId ? text(d.sourceEventId,240) : null,d.inputTokens ?? null,d.outputTokens ?? null,
+         d.cachedInputTokens ?? null,d.reasoningTokens ?? null,text(d.availability,32),operation.occurredAt]);
+      break;
+    }
+    case "tool-use.record":
+      await client.query(`INSERT INTO tool_uses(tool_record_id,project_id,prompt_id,execution_id,native_session,native_turn,tool_use_id,tool_name,origin,parent_tool_use_id,started_at,completed_at,duration_ms,failed,cache_hit,cache_status)
+        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+        ON CONFLICT DO NOTHING`,
+        [d.toolRecordId,d.projectId,d.promptId || null,d.executionId || null,text(d.nativeSession,240),d.nativeTurn ? text(d.nativeTurn,240) : null,
+         d.toolUseId ? text(d.toolUseId,240) : null,text(d.toolName,160),text(d.origin || 'unknown',24),
+         d.parentToolUseId ? text(d.parentToolUseId,240) : null,d.startedAt || null,d.completedAt || operation.occurredAt,
+         d.durationMs ?? null,d.failed ?? null,d.cacheHit ?? null,d.cacheStatus || 'unknown']);
       break;
     case "execution.start":
       await client.query(`INSERT INTO executions(execution_id,project_id,session_id,prompt_id,parent_execution_id,execution_kind,attempt_no,trace_id,status,started_at)
@@ -292,6 +323,31 @@ app.get("/v1/prompts/:promptId", async (request,reply) => {
   if (!result.rowCount) return reply.code(404).send({ error: "prompt not found" });
   const executions = await pool.query("SELECT execution_id,status,outcome,started_at,ended_at,result_summary,encode(trace_id,'hex') trace_id FROM executions WHERE prompt_id=$1 ORDER BY started_at",[request.params.promptId]);
   return { prompt: result.rows[0], executions: executions.rows };
+});
+
+app.get("/v1/projects/:projectId/analytics", async (request,reply) => {
+  const projectId = request.params.projectId;
+  if (!/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(projectId)) {
+    return reply.code(400).send({ error: "invalid project id" });
+  }
+  const days = Math.min(30,Math.max(1,Number.parseInt(request.query.days,10) || 7));
+  const prompts = await pool.query(`WITH by_source AS (
+      SELECT prompt_id,source,SUM(input_tokens) input_tokens,SUM(output_tokens) output_tokens,
+        SUM(cached_input_tokens) cached_input_tokens,SUM(reasoning_tokens) reasoning_tokens,COUNT(*) records
+      FROM turn_usage WHERE project_id=$1 AND prompt_id IS NOT NULL AND availability='exact' AND recorded_at >= now()-($2::int * interval '1 day')
+      GROUP BY prompt_id,source
+    ), preferred AS (
+      SELECT DISTINCT ON (prompt_id) * FROM by_source
+      ORDER BY prompt_id,CASE WHEN source IN ('codex_hook','claude_hook') THEN 0 ELSE 1 END,source
+    ) SELECT prompt_id,source,input_tokens,output_tokens,cached_input_tokens,reasoning_tokens,records
+    FROM preferred ORDER BY prompt_id DESC LIMIT 100`,[projectId,days]);
+  const tools = await pool.query(`SELECT tool_name,origin,COUNT(*) calls,COUNT(*) FILTER (WHERE failed) failures,
+      COUNT(*) FILTER (WHERE cache_status='hit') cache_hits,COUNT(*) FILTER (WHERE cache_status='miss') cache_misses,
+      COUNT(*) FILTER (WHERE cache_status='unknown') cache_unknown,
+      ROUND(AVG(duration_ms))::bigint avg_duration_ms
+    FROM tool_uses WHERE project_id=$1 AND completed_at >= now()-($2::int * interval '1 day')
+    GROUP BY tool_name,origin ORDER BY calls DESC,tool_name LIMIT 100`,[projectId,days]);
+  return { days,promptUsage:prompts.rows,tools:tools.rows };
 });
 
 app.get("/v1/traces/:traceId", async request => {

@@ -38,6 +38,7 @@ class ClaudeOtelTests(unittest.TestCase):
 
     def test_other_events_ignored(self):
         self.assertIsNone(claude_otel.map({"event.name": "user_prompt"}))
+        self.assertIsNone(claude_otel.map({"event.name": "api_request", "session.id": "s"}))
 
     def test_usage_id_deterministic(self):
         attrs = rx.decode_attrs(payload("claude-code", CLAUDE_API))[0][1]
