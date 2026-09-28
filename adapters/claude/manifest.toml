@@ -3,3 +3,6 @@ rulesync_target = "claudecode"
 events = ["SessionStart", "UserPromptSubmit", "PostToolUse", "Stop", "SubagentStart", "SubagentStop", "SessionEnd", "Notification"]
 tested_versions = ["2.1.283"]
 otel_service_names = ["claude-code"]  # prefix match
+binary = "claude"  # CLI name resolved on PATH by preflight
+default_home = "~/.claude"
+hook_config = "settings.json"  # file in the home that holds the harness hooks

@@ -5,3 +5,6 @@ tested_versions = ["0.157.1"]
 otel_service_names = ["codex"]  # prefix match; observed "codex_exec" (codex exec 0.157.1)
 # Codex's Windows command runner rejects an executable that starts with a quote (see tools/codex-status-orb/manage_hooks.py).
 hook_command_style = "bare"
+binary = "codex"
+default_home = "~/.codex"
+hook_config = "hooks.json"
