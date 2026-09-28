@@ -55,7 +55,10 @@ def evaluate(payload: dict[str, Any], catalog: dict[str, Any]) -> dict[str, Any]
     direction = definition["direction"]
     measure = definition["measure"]
     margin = float(payload.get("margin", definition.get("margin", 0)))
-    target = float(payload.get("target", sum(baseline) / len(baseline) if measure == "proportion" else _median(baseline)))
+    if "target" in payload:  # the baseline default must not be evaluated eagerly: baseline may be empty
+        target = float(payload["target"])
+    else:
+        target = sum(baseline) / len(baseline) if measure == "proportion" else _median(baseline)
     if definition.get("margin_kind") == "relative":
         margin = abs(target) * margin
     boundary = target - margin if direction == "higher" else target + margin
@@ -69,7 +72,8 @@ def evaluate(payload: dict[str, Any], catalog: dict[str, Any]) -> dict[str, Any]
             successes = len(candidate) - successes
             boundary = 1 - boundary
         test = binomtest(successes, len(candidate), min(1, max(0, boundary)), alternative="greater")
-        interval = test.proportion_ci(confidence_level=1 - result["alpha"])
+        # A one-sided ("greater") test yields a CI with high == 1, which can never show a regression; use two-sided.
+        interval = binomtest(successes, len(candidate)).proportion_ci(confidence_level=1 - result["alpha"])
         passed = test.pvalue < result["alpha"]
         observed = sum(candidate) / len(candidate)
         if direction == "lower":
