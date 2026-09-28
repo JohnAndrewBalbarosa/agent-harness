@@ -35,6 +35,7 @@ class Layout:
     orb_health: Path
     obs_endpoint: str
     hub_dir: Path | None = None  # observability hub checkout (start.ps1); default <root>/hub
+    orb_ui: bool = True  # ORB_UI=0: the orb hook keeps session state, but no orb window is started
 
     @property
     def log(self) -> Path:
@@ -44,7 +45,7 @@ class Layout:
 def default_layout(env: dict[str, str]) -> Layout:
     local = Path(env.get("LOCALAPPDATA") or Path.home())
     return Layout(ROOT, local / "CodexStatusOrb" / "health.json", env.get("OBS_ENDPOINT") or "http://127.0.0.1:4319",
-                  Path(env["HUB_DIR"]) if env.get("HUB_DIR") else None)
+                  Path(env["HUB_DIR"]) if env.get("HUB_DIR") else None, str(env.get("ORB_UI", "")).strip() != "0")
 
 
 def launch_detached(command: Sequence[str | Path], cwd: Path) -> None:
@@ -103,6 +104,8 @@ def ensure_orb(layout: Layout, launch: Launch) -> str:
     pythonw = orb / ".venv" / "Scripts" / "pythonw.exe"
     if not pythonw.exists():
         return "not_installed"
+    if not layout.orb_ui:
+        return "ui_disabled"
     if _orb_healthy(layout.orb_health):
         return "already_running"
     launch([pythonw, orb / "orb.py"], orb)

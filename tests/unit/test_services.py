@@ -58,6 +58,16 @@ class BootstrapTests(unittest.TestCase):
         self.run_bootstrap()
         self.assertEqual(len(self.launch.launched), 1)
 
+    def test_orb_ui_can_be_disabled(self):
+        pythonw = self.root / "tools" / "codex-status-orb" / ".venv" / "Scripts" / "pythonw.exe"
+        pythonw.parent.mkdir(parents=True)
+        pythonw.write_bytes(b"")
+        layout = bootstrap.Layout(self.root, self.orb_health, "http://127.0.0.1:1", orb_ui=False)
+        self.assertEqual(bootstrap.ensure_orb(layout, self.launch), "ui_disabled")
+        self.assertEqual(self.launch.launched, [])
+        self.assertFalse(bootstrap.default_layout({"ORB_UI": "0", "LOCALAPPDATA": str(self.root)}).orb_ui)
+        self.assertTrue(bootstrap.default_layout({"LOCALAPPDATA": str(self.root)}).orb_ui)
+
     def test_hub_starts_only_when_installed_and_down(self):
         start = self.root / "hub" / "start.ps1"
         start.parent.mkdir(parents=True)
