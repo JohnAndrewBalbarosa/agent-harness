@@ -55,3 +55,14 @@ def usage(path: Path, turn_id: str | None) -> TurnUsage:
     start = max((i for i, entry in enumerate(entries) if is_turn_start(entry)), default=None)
     turn_entries = entries if start is None else entries[start + 1:]
     return sum_usage(turn_entries, None if start is None else entries[start].get("uuid"))
+
+
+def context_tokens(path: Path) -> int | None:
+    """Prompt size of the latest API request (input + cache read + cache write): what the next request re-sends."""
+    for entry in reversed(load_entries(path)):
+        message = entry.get("message") if entry.get("type") == "assistant" else None
+        usage = message.get("usage") if isinstance(message, dict) else None
+        if isinstance(usage, dict):
+            return count(usage.get("input_tokens")) + count(usage.get("cache_read_input_tokens")) + \
+                count(usage.get("cache_creation_input_tokens"))
+    return None

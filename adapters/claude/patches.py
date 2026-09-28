@@ -10,7 +10,7 @@ POLICY_END = "<!-- agent-harness:end -->"
 
 
 def env(cfg: Config) -> dict[str, str]:
-    return {
+    managed = {
         "CLAUDE_CODE_ENABLE_TELEMETRY": "1",
         "OTEL_METRICS_EXPORTER": "none",
         "OTEL_LOGS_EXPORTER": "otlp",
@@ -18,6 +18,9 @@ def env(cfg: Config) -> dict[str, str]:
         "OTEL_EXPORTER_OTLP_LOGS_ENDPOINT": f"http://127.0.0.1:{cfg.otlp_port}/v1/logs",
         "OTEL_LOGS_EXPORT_INTERVAL": "5000",
     }
+    if cfg.claude_autocompact_pct:  # compact earlier: every request re-sends the whole context
+        managed["CLAUDE_AUTOCOMPACT_PCT_OVERRIDE"] = str(cfg.claude_autocompact_pct)
+    return managed
 
 
 def policy_import(cfg: Config, home: Path | None = None) -> str:

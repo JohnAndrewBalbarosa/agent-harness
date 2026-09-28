@@ -29,3 +29,14 @@ def usage(path: Path, turn_id: str | None) -> TurnUsage:
         totals["reasoning"] += count(tokens.get("reasoning_output_tokens"))
     return TurnUsage(input_tokens=totals["input"], output_tokens=totals["output"], cached_input_tokens=totals["cached"],
                      reasoning_tokens=totals["reasoning"], api_calls=len(seen), turn_id=target)
+
+
+def context_tokens(path: Path) -> int | None:
+    """Prompt size of the latest model request (`token_count.info.last_token_usage.input_tokens`, cached included)."""
+    for entry in reversed(load_entries(path)):
+        payload = entry.get("payload") if isinstance(entry.get("payload"), dict) else {}
+        info = payload.get("info") if payload.get("type") == "token_count" else None
+        last = info.get("last_token_usage") if isinstance(info, dict) else None
+        if isinstance(last, dict):
+            return count(last.get("input_tokens"))
+    return None

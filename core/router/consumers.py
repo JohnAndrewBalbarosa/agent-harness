@@ -40,6 +40,7 @@ def _harness_consumers() -> list[Consumer]:
                  _module("core.notify.consumer"), "event", DEFAULT_TIMEOUT_S),
         Consumer("tasks", frozenset({"subagent.start", "subagent.stop"}), _module("core.tasks.consumer"), "event", 10),
         Consumer("usage-fallback", frozenset({"turn.stop"}), _module("core.usage.fallback"), "event", DEFAULT_TIMEOUT_S),
+        Consumer("context-guard", frozenset({"turn.stop"}), _module("core.usage.context_guard"), "event", DEFAULT_TIMEOUT_S),
         Consumer("context", frozenset({"session.start"}), _module("core.context.consumer"), "event", 20),
         Consumer("services", frozenset({"session.start"}), _module("core.services.consumer"), "event", 10),
     ]

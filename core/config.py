@@ -18,7 +18,9 @@ DEFAULTS = {
     "NOTIFY_RATE_LIMIT": "5/60",
     "RULESYNC_VERSION": "22.0.0",
     "HERDR_BIN": "",
-    "RTK_BIN": "",  # rtk (github.com/rtk-ai/rtk) compresses Bash output; empty = disabled
+    "RTK_BIN": "",
+    "CLAUDE_AUTOCOMPACT_PCT": "",  # 1-100; Claude only accepts values below its default
+    "CONTEXT_WARN_TOKENS": "150000",  # rtk (github.com/rtk-ai/rtk) compresses Bash output; empty = disabled
 }
 KNOWN_KEYS = REQUIRED + tuple(DEFAULTS)
 _PERCENT_VAR = re.compile(r"%([A-Za-z_][A-Za-z0-9_]*)%")
@@ -43,6 +45,8 @@ class Config:
     herdr_bin: Path | None
     rulesync_version: str
     rtk_bin: str | None = None
+    claude_autocompact_pct: int | None = None
+    context_warn_tokens: int = 150000
 
 
 def parse_env_text(text: str) -> dict[str, str]:
@@ -82,6 +86,15 @@ def _int(key: str, value: str) -> int:
         raise ValueError(f"{key} must be an integer, got {value!r}") from None
 
 
+def _percent(key: str, value: str) -> int | None:
+    if not value:
+        return None
+    number = _int(key, value)
+    if not 1 <= number <= 100:
+        raise ValueError(f"{key} must be between 1 and 100, got {number}")
+    return number
+
+
 def load(env_file: Path, environ: Mapping[str, str]) -> Config:
     file_values = parse_env_text(env_file.read_text(encoding="utf-8")) if env_file.exists() else {}
     merged = {**DEFAULTS, **file_values, **{k: environ[k] for k in KNOWN_KEYS if environ.get(k)}}
@@ -98,10 +111,12 @@ def load(env_file: Path, environ: Mapping[str, str]) -> Config:
         herdr_bin=Path(values["HERDR_BIN"]) if values["HERDR_BIN"] else None,
         rulesync_version=values["RULESYNC_VERSION"],
         rtk_bin=values["RTK_BIN"] or None,
+        claude_autocompact_pct=_percent("CLAUDE_AUTOCOMPACT_PCT", values["CLAUDE_AUTOCOMPACT_PCT"]),
+        context_warn_tokens=_int("CONTEXT_WARN_TOKENS", values["CONTEXT_WARN_TOKENS"]),
     )
 
 
-RUNTIME_KEYS = ("OBS_ENDPOINT", "OTLP_PORT", "NOTIFY_RATE_LIMIT", "HERDR_BIN", "HARNESS_PYTHON", "HUB_DIR", "ORB_UI")
+RUNTIME_KEYS = ("OBS_ENDPOINT", "OTLP_PORT", "NOTIFY_RATE_LIMIT", "HERDR_BIN", "HARNESS_PYTHON", "HUB_DIR", "ORB_UI", "CONTEXT_WARN_TOKENS")
 
 
 def runtime_env(env_file: Path, environ: Mapping[str, str]) -> dict[str, str]:

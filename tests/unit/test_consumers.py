@@ -18,6 +18,10 @@ class RegistryTests(unittest.TestCase):
         self.assertIn("tasks", names("subagent.start", "SubagentStart"))
         self.assertFalse({"obs", "notify", "context"} & names("subagent.start", "SubagentStart"))
 
+    def test_turn_stop_routes_to_the_context_guard_only(self):
+        self.assertIn("context-guard", names("turn.stop"))
+        self.assertNotIn("context-guard", names("prompt.submit", "UserPromptSubmit"))
+
     def test_session_start_routes_to_context(self):
         self.assertIn("context", names("session.start", "SessionStart"))
 
