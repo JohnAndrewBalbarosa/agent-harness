@@ -27,10 +27,11 @@ $savedHerdr = @(Get-ChildItem env: | Where-Object Name -like 'HERDR*')
 $savedHerdr | ForEach-Object { Remove-Item -LiteralPath ("env:" + $_.Name) }
 try {
   # Dry run writes nothing.
-  $events = @(& (Join-Path $root 'scripts\install.ps1') -Destination $destination -EnvFile $envFile -Prerequisites ValidateOnly -DryRun -SkipCompile -SkipServices -SkipOrbVenv |
+  $events = @(& (Join-Path $root 'scripts\install.ps1') -Destination $destination -EnvFile $envFile -Prerequisites ValidateOnly -DryRun -SkipCompile -SkipServices -SkipOrbVenv -LinkHerdrPlugin |
     ForEach-Object { $_ | ConvertFrom-Json })
   Assert (-not (Test-Path -LiteralPath $destination)) 'Dry run wrote the runtime.'
   Assert ([bool]($events | Where-Object { $_.operation -eq 'install.finish' -and $_.outcome -eq 'succeeded' })) 'Dry run did not finish.'
+  Assert ([bool]($events | Where-Object { $_.operation -eq 'herdr.plugin.link' -and $_.outcome -eq 'planned' })) 'Dry run omitted the Herdr plugin link.'
 
   # Real install (compile skipped: covered by tests/integration/test_compile_temp_home.py).
   & (Join-Path $root 'scripts\install.ps1') -Destination $destination -EnvFile $envFile -Prerequisites ValidateOnly -SkipCompile -SkipServices -SkipOrbVenv | Out-Null
@@ -38,6 +39,17 @@ try {
   foreach ($item in @('herdr-plugin\herdr-plugin.toml', 'core\harness.cmd', 'policy\RTK.md', 'core\router\harness-hook.cmd','adapters\claude\adapter.py', 'compile\run.py', 'tools\observability-client\obs.py', '.env', 'policy\AGENTS.md')) {
     Assert (Test-Path -LiteralPath (Join-Path $destination $item)) "Missing after install: $item"
   }
+  $herdrStub = Join-Path $work 'herdr.cmd'
+  $herdrCall = Join-Path $work 'herdr-call.txt'
+  Set-Content -LiteralPath $herdrStub -Value @('@echo off', 'echo %* > "%AH_TEST_HERDR_CALL%"') -Encoding ascii
+  $env:HERDR_BIN_PATH = $herdrStub
+  $env:AH_TEST_HERDR_CALL = $herdrCall
+  try {
+    & (Join-Path $root 'scripts\install.ps1') -Destination $destination -EnvFile $envFile -Prerequisites ValidateOnly -SkipCompile -SkipServices -SkipOrbVenv -LinkHerdrPlugin | Out-Null
+  } finally {
+    Remove-Item Env:HERDR_BIN_PATH, Env:AH_TEST_HERDR_CALL -ErrorAction SilentlyContinue
+  }
+  Assert ((Get-Content -LiteralPath $herdrCall -Raw).Contains((Join-Path $destination 'herdr-plugin'))) 'Installer linked the wrong Herdr plugin path.'
   $policy = Get-Content -LiteralPath (Join-Path $destination 'policy\AGENTS.md') -Raw
   Assert ($policy.Contains($destination)) 'Policy was not rendered with HARNESS_HOME.'
   Assert (-not $policy.Contains('{{HARNESS_HOME}}')) 'Policy still contains placeholders.'

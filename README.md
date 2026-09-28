@@ -31,6 +31,7 @@ observability hub. Missing tools are installed with `winget` unless `-Prerequisi
 powershell -ExecutionPolicy Bypass -File .\scripts\install.ps1                 # install + compile + start receiver
 .\scripts\install.ps1 -DryRun                                                   # plan only, writes nothing
 .\scripts\install.ps1 -CompileDryRun                                            # install code, show config diff only
+.\scripts\install.ps1 -LinkHerdrPlugin                                          # also link the local Herdr plugin
 .\scripts\install.ps1 -WithHub                                                  # also deploy the observability hub (Docker)
 .\scripts\doctor.ps1 -CheckCompile                                              # read-only health report
 .\scripts\uninstall.ps1 [-Purge]
@@ -45,6 +46,15 @@ $env:PYTHONPATH="$env:USERPROFILE\.agent-harness"; python -m compile.run        
 ```
 
 Restart each agent afterwards. Authentication stays per agent home and is never shared.
+
+Herdr is optional. To link the plugin after a regular install, run
+`herdr plugin link "$env:USERPROFILE\.agent-harness\herdr-plugin"` and verify it with `herdr plugin list`.
+`-LinkHerdrPlugin` performs the same link during installation and requires Herdr on `PATH` or
+`HERDR_BIN_PATH` set to its executable. Install the harness first and link its installed plugin
+directory so the plugin's commands use the configured `core` package and retained runtime state.
+The plugin provides agent preflight and service startup;
+Codex and Claude pane colors remain controlled by Herdr's screen detection. In Herdr, **Done**
+means the finished pane has not yet been viewed; after viewing it, the state appears as **Idle**.
 
 ## What each agent gets
 
@@ -61,6 +71,8 @@ Restart each agent afterwards. Authentication stays per agent home and is never 
 > **Token totals:** every turn is recorded twice on purpose — `source = '<agent>_otel'` (per API request, from
 > OpenTelemetry) and `source = '<agent>_hook'` (per turn, from the transcript). Filter `turn_usage` by one source
 > when summing, or you will double count. `_otel` is authoritative; `_hook` covers sessions without OTel.
+> `harness usage` reports cumulative model token/cache counts. Its tool-result breakdown measures
+> bytes, not per-tool cache hits, and it does not establish a before/after token saving for one run.
 
 Diagnostics: `python -m core.notify.report --minutes 120` cross-references notifications with Windows toast
 history and transcripts; router and consumer lifecycle logs live in `var\logs\`.

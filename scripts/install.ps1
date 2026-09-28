@@ -8,6 +8,7 @@ param(
   [switch]$SkipCompile,
   [switch]$SkipServices,
   [switch]$SkipOrbVenv,
+  [switch]$LinkHerdrPlugin,
   [switch]$DryRun
 )
 # agent-harness installer. Code directories are mirrored on every run; owner-owned files are never overwritten:
@@ -145,6 +146,22 @@ if (-not $SkipServices) {
     $env:PYTHONPATH = $Destination
     Push-Location $Destination
     try { & $python -m core.usage.receiver ensure } finally { Pop-Location }
+  }
+}
+
+if ($LinkHerdrPlugin) {
+  Invoke-Step 'herdr.plugin.link' {
+    $herdr = if ($env:HERDR_BIN_PATH) {
+      if (-not (Test-Path -LiteralPath $env:HERDR_BIN_PATH)) { throw 'HERDR_BIN_PATH does not exist.' }
+      $env:HERDR_BIN_PATH
+    } else {
+      $command = Get-Command herdr -ErrorAction SilentlyContinue
+      if (-not $command) { throw 'Herdr is required for -LinkHerdrPlugin (install Herdr or set HERDR_BIN_PATH).' }
+      $command.Source
+    }
+    $plugin = Join-Path $Destination 'herdr-plugin'
+    & $herdr plugin link $plugin | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw "Herdr plugin link failed with exit code $LASTEXITCODE." }
   }
 }
 
