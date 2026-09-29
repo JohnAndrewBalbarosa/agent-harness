@@ -35,7 +35,8 @@ agent CLI ──OpenTelemetry OTLP/HTTP JSON──► core\usage\receiver (127.0
 | `core/config.py` | `.env` loading, quoted hook commands | — |
 | `compile/` | render rulesync hooks, merge helpers, simulated compile + backups | config, adapters |
 | `tools/` | vendored runtime tools (observability client, status orb, herdr-bridge, legacy router) | — |
-| `hub/` | observability hub distribution (Node + Postgres) deployed by `install.ps1 -WithHub` | Docker |
+| `crates/` | Rust workspace: `obs-hub` (hub server over SQLite), `obs-cli` (`obs-rs`), `obs-common` | built once by `install.ps1 -WithHub` |
+| `hub/` | Python observability client tools (hooks, `obs.py`, spool, SDKs); the legacy Node hub was removed 2026-09-30 | — |
 
 ## Guarantees
 

@@ -24,15 +24,15 @@ Telemetry mapping reads whitelisted fields only; personal data carried in OpenTe
 
 ## Install
 
-Requirements: Python 3.11+ (uv-managed 3.14 preferred), Node.js 22+ (`npx` for rulesync), optionally Docker for the
-observability hub. Missing tools are installed with `winget` unless `-Prerequisites ValidateOnly`.
+Requirements: Python 3.11+ (uv-managed 3.14 preferred), Node.js 22+ (`npx` for rulesync), and Docker only for the
+first `-WithHub` install (one-time Rust build; the hub never needs Docker at runtime). Missing tools are installed with `winget` unless `-Prerequisites ValidateOnly`.
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\install.ps1                 # install + compile + start receiver
 .\scripts\install.ps1 -DryRun                                                   # plan only, writes nothing
 .\scripts\install.ps1 -CompileDryRun                                            # install code, show config diff only
 .\scripts\install.ps1 -LinkHerdrPlugin                                          # also link the local Herdr plugin
-.\scripts\install.ps1 -WithHub                                                  # also deploy the observability hub (Docker)
+.\scripts\install.ps1 -WithHub                                                  # also install the Rust hub (one-time Docker build)
 .\scripts\doctor.ps1 -CheckCompile                                              # read-only health report
 .\scripts\uninstall.ps1 [-Purge]
 ```
@@ -99,8 +99,12 @@ embedded SQLite file, replacing the Node hub + PostgreSQL + MongoDB containers. 
 
 Measured on Windows 11: `obs-hub.exe` idles at ~9 MB working set (2.4 MB private); the stack it replaces used ~750 MB.
 
+`install.ps1 -WithHub` builds and verifies these once inside Docker (no local Rust toolchain), copies them to
+`~\.agent-harness\bin`, stops Docker again if it started it, and skips the build on later installs. Contributors can
+run the same steps directly:
+
 ```powershell
-.\scripts\rust-docker.ps1 build-windows   # -> target-windows\obs-hub.exe, obs-rs.exe (no local Rust needed)
+.\scripts\rust-docker.ps1 build-windows   # -> target-windows\obs-hub.exe, obs-rs.exe
 ```
 
 ## Verification
@@ -109,8 +113,7 @@ Measured on Windows 11: `obs-hub.exe` idles at ~9 MB working set (2.4 MB private
 uv run --with scipy==1.18.1 python -m unittest discover -s tests -t . -v   # unit, conformance, integration (needs npx)
 .\tests\test_installer.ps1
 .\scripts\verify-secrets.ps1
-.\scripts\rust-docker.ps1 fmt-check; .\scripts\rust-docker.ps1 clippy; .\scripts\rust-docker.ps1 test
-.\scripts\rust-docker.ps1 build-linux; python tests\system\obs_hub_parity.py   # Node vs Rust hub parity
+.\scripts\rust-docker.ps1 fmt-check; .\scripts\rust-docker.ps1 clippy; .\scripts\rust-docker.ps1 test   # needs Docker
 ```
 
 Secret verification downloads the official Gitleaks v8.30.1 archive, verifies its checksum, runs a synthetic

@@ -1,8 +1,11 @@
-# Codex Observability Hub
+# Observability client tools (Python)
 
-A Windows-first, local-only observability stack for **Codex**. It captures Codex
-lifecycle events, correlates prompts, tool activity, executions, code versions,
-and runtime logs, and keeps a bounded SQLite WAL spool when PostgreSQL is offline.
+Client side of the local observability stack: Codex hooks, the `obs.py` CLI, the
+bounded SQLite WAL spool, SDKs, and the interval supervisor. The **hub server**
+itself is the Rust binary in [`crates/obs-hub`](../crates/obs-hub) (one embedded
+SQLite file, no Docker at runtime), installed by `scripts/install.ps1 -WithHub`.
+The legacy Node (Fastify) + PostgreSQL + MongoDB server was removed on 2026-09-30;
+it remains in Git history (`726feb0`).
 
 This package is intentionally scoped to Codex. It has not been tested with other
 AI coding agents.
@@ -11,7 +14,6 @@ AI coding agents.
 
 - Codex hooks for `SessionStart`, `UserPromptSubmit`, `PostToolUse`, `Stop`, and
   `SessionEnd`
-- a loopback Fastify service and PostgreSQL schema/migrations
 - a bounded local SQLite WAL fallback and dead-letter handling
 - `obs.cmd` commands for registration, events, errors, traces, diagnosis, prompt
   enrichment, runtime ingestion, and spool flushing
@@ -29,8 +31,7 @@ and outcome; it does not necessarily collapse the entire day into one row.
 - Codex on Windows
 - PowerShell 7 or Windows PowerShell 5.1
 - Python 3.11+
-- Node.js 20+
-- Docker Desktop with Docker Compose
+- The Rust hub (`install.ps1 -WithHub`; its first install builds once in Docker)
 
 ## Install
 
@@ -123,9 +124,9 @@ The identity graph is:
 project -> session -> prompt -> execution -> event/error
 ```
 
-Each registered project gets a stable UUID and filtered PostgreSQL views in a
-deterministic `project_<uuid>` schema. Canonical rows remain normalized rather
-than duplicated.
+Each registered project gets a stable UUID. Canonical rows stay normalized in
+one SQLite database; `obs.cmd query --project <uuid> "<SQL>"` scopes ad-hoc,
+read-only SQL to one project through temporary filtered views.
 
 Raw capture can include exact prompts, assistant results, tool inputs/outputs,
 paths, and application payloads. Treat the local database as sensitive. The
@@ -145,7 +146,6 @@ blocking application work. `examples/browser-extension-logger.js` shows a
 
 ```powershell
 python -m unittest discover -s tests -v
-npm test
 Invoke-RestMethod http://127.0.0.1:4319/health
 ```
 

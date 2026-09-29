@@ -16,7 +16,7 @@ if (-not (Test-Path -LiteralPath (Join-Path $Destination 'var\install-state.json
 $stopped = @(Get-CimInstance Win32_Process | Where-Object { $_.ProcessId -ne $PID -and $_.CommandLine -and $_.CommandLine.Contains($Destination) })
 $stopped | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
 if ($stopped) { Start-Sleep -Milliseconds 500 }
-foreach ($dir in @('core', 'adapters', 'compile', 'tools', 'hub', 'herdr-plugin')) {
+foreach ($dir in @('core', 'adapters', 'compile', 'tools', 'hub', 'herdr-plugin', 'bin')) {
   $target = Join-Path $Destination $dir
   if (Test-Path -LiteralPath $target) { Remove-Item -LiteralPath $target -Recurse -Force }
 }

@@ -69,33 +69,15 @@ class BootstrapTests(unittest.TestCase):
         self.assertTrue(bootstrap.default_layout({"LOCALAPPDATA": str(self.root)}).orb_ui)
 
     def test_hub_starts_only_when_installed_and_down(self):
-        start = self.root / "hub" / "start.ps1"
-        start.parent.mkdir(parents=True)
-        start.write_text("", encoding="utf-8")
-        self.run_bootstrap(healthy=lambda url: True)
-        self.assertEqual(self.launch.launched, [])
         self.run_bootstrap(healthy=lambda url: False)
-        self.assertTrue(any("start.ps1" in part for part in self.launch.launched[0][0]))
-
-    def test_hub_outside_the_harness_comes_from_hub_dir(self):
-        hub = self.root / "elsewhere" / "observability-hub"
-        hub.mkdir(parents=True)
-        (hub / "start.ps1").write_text("", encoding="utf-8")
-        layout = bootstrap.default_layout({"HUB_DIR": str(hub), "LOCALAPPDATA": str(self.root)})
-        self.assertEqual(layout.hub_dir, hub)
-        self.assertEqual(bootstrap.ensure_hub(layout, self.launch, lambda url: False), "requested")
-        self.assertIn(str(hub / "start.ps1"), self.launch.launched[0][0])
-
-    def test_native_hub_is_preferred_over_legacy_start_script(self):
-        (self.root / "hub").mkdir(parents=True)
-        (self.root / "hub" / "start.ps1").write_text("", encoding="utf-8")
-        native = bootstrap.native_hub_binary(self.root)
-        native.parent.mkdir(parents=True)
-        native.write_bytes(b"")
-        layout = bootstrap.Layout(self.root, self.orb_health, "http://127.0.0.1:1")
-        self.assertEqual(bootstrap.ensure_hub(layout, self.launch, lambda url: True), "already_running")
-        self.assertEqual(bootstrap.ensure_hub(layout, self.launch, lambda url: False), "requested_native")
-        self.assertEqual(self.launch.launched[0][0], (str(native), "serve"))
+        self.assertEqual(self.launch.launched, [])  # not installed: nothing to start
+        hub = bootstrap.native_hub_binary(self.root)
+        hub.parent.mkdir(parents=True)
+        hub.write_bytes(b"")
+        self.run_bootstrap(healthy=lambda url: True)
+        self.assertEqual(self.launch.launched, [])  # already answering
+        self.run_bootstrap(healthy=lambda url: False)
+        self.assertEqual(self.launch.launched[0][0], (str(hub), "serve"))
 
     def test_console_monitor_is_launched_when_present(self):
         self.run_bootstrap()

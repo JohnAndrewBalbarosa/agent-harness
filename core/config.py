@@ -116,7 +116,7 @@ def load(env_file: Path, environ: Mapping[str, str]) -> Config:
     )
 
 
-RUNTIME_KEYS = ("OBS_ENDPOINT", "OTLP_PORT", "NOTIFY_RATE_LIMIT", "HERDR_BIN", "HARNESS_PYTHON", "HUB_DIR", "ORB_UI", "CONTEXT_WARN_TOKENS")
+RUNTIME_KEYS = ("OBS_ENDPOINT", "OTLP_PORT", "NOTIFY_RATE_LIMIT", "HERDR_BIN", "HARNESS_PYTHON", "ORB_UI", "CONTEXT_WARN_TOKENS")
 
 
 def runtime_env(env_file: Path, environ: Mapping[str, str]) -> dict[str, str]:

@@ -60,6 +60,40 @@ function Resolve-Python {
   throw 'Python 3.11+ is required (set HARNESS_PYTHON or install uv Python).'
 }
 
+function Test-RustHubInstalled([string]$Bin) {
+  return (Test-Path -LiteralPath (Join-Path $Bin 'obs-hub.exe')) -and (Test-Path -LiteralPath (Join-Path $Bin 'obs-rs.exe'))
+}
+
+function Test-DockerEngine {
+  & docker info --format '{{.ServerVersion}}' *> $null
+  return $LASTEXITCODE -eq 0
+}
+
+# Mental model: start Docker only if needed -> verify (cargo test) -> build Windows binaries -> stop what we started.
+function Invoke-OneTimeRustBuild {
+  $startedDocker = $false
+  if (-not (Test-DockerEngine)) {
+    & docker desktop start --timeout 180 *> $null
+    if (-not (Test-DockerEngine)) { throw 'Docker engine did not start; it is needed once to build the Rust hub.' }
+    $startedDocker = $true
+  }
+  try {
+    foreach ($task in @('test', 'build-windows')) {
+      & (Join-Path $repoRoot 'scripts\rust-docker.ps1') $task *> (Join-Path $env:TEMP "agent-harness-rust-$task.log")
+      if ($LASTEXITCODE -ne 0) { throw "Rust $task failed (log: $env:TEMP\agent-harness-rust-$task.log)." }
+      Write-Event "hub.rust.$task" 'succeeded'
+    }
+  } finally {
+    if ($startedDocker) { & docker desktop stop *> $null }
+  }
+}
+
+function Start-RustHub([string]$Bin) {
+  $endpoint = (Get-EnvFileValue 'OBS_ENDPOINT'); if (-not $endpoint) { $endpoint = 'http://127.0.0.1:4319' }
+  try { Invoke-RestMethod -Uri ($endpoint.TrimEnd('/') + '/health') -TimeoutSec 2 | Out-Null; return } catch { }
+  Start-Process -FilePath (Join-Path $Bin 'obs-hub.exe') -ArgumentList 'serve' -WorkingDirectory $Bin -WindowStyle Hidden
+}
+
 Write-Event 'install.start' 'started' @{ destination = $Destination; with_hub = [bool]$WithHub; dry_run = [bool]$DryRun }
 foreach ($item in @(@('node', 'OpenJS.NodeJS.LTS'), @('uv', 'astral-sh.uv'))) { Ensure-Command $item[0] $item[1] }
 if ($WithHub) { Ensure-Command 'docker' 'Docker.DockerDesktop' }
@@ -111,23 +145,17 @@ if (-not $SkipOrbVenv) {
 
 if ($WithHub) {
   Invoke-Step 'hub.install' {
-    $hub = Join-Path $Destination 'hub'
-    if (-not (Test-Path -LiteralPath $hub)) { Copy-Item -LiteralPath (Join-Path $repoRoot 'hub') -Destination $hub -Recurse }
-    & npm ci --prefix $hub --no-audit --no-fund
-    if ($LASTEXITCODE -ne 0) { throw 'Hub dependency installation failed.' }
-    $hubEnv = Join-Path $hub '.env'
-    if (-not (Test-Path -LiteralPath $hubEnv)) {
-      $rng = [Security.Cryptography.RandomNumberGenerator]::Create()
-      function New-Secret { $bytes = New-Object byte[] 32; $rng.GetBytes($bytes); ([BitConverter]::ToString($bytes) -replace '-', '').ToLowerInvariant() }
-      @('OBS_POSTGRES_DB=observability', 'OBS_POSTGRES_USER=observability', "OBS_POSTGRES_PASSWORD=$(New-Secret)",
-        'OBS_MONGODB_DATABASE=agent_memory', 'OBS_MONGODB_USER=observability', "OBS_MONGODB_PASSWORD=$(New-Secret)",
-        "OBS_HMAC_KEY=$(New-Secret)") | Set-Content -LiteralPath $hubEnv -Encoding ascii
-      & icacls $hubEnv /inheritance:r /grant:r "$env:USERNAME`:(R,W)" | Out-Null
+    # The observability hub is a Rust binary (crates/obs-hub) over one SQLite file; it never needs Docker at runtime.
+    # First install only: build it once inside Docker (no local Rust toolchain needed), run the test suite, copy the
+    # binaries to <Destination>\bin, and stop Docker again if this step started it. Later runs keep installed binaries.
+    $bin = Join-Path $Destination 'bin'
+    if (-not (Test-RustHubInstalled $bin)) {
+      $built = Join-Path $repoRoot 'target-windows'
+      if (-not (Test-Path -LiteralPath (Join-Path $built 'obs-hub.exe'))) { Invoke-OneTimeRustBuild }
+      New-Item -ItemType Directory -Path $bin -Force | Out-Null
+      Copy-Item -Path (Join-Path $built '*.exe') -Destination $bin -Force
     }
-    if (-not $SkipServices) {
-      Push-Location $hub
-      try { & docker compose --env-file .env up -d; if ($LASTEXITCODE -ne 0) { throw 'Docker Compose startup failed.' } } finally { Pop-Location }
-    }
+    if (-not $SkipServices) { Start-RustHub $bin }
   }
 }
 

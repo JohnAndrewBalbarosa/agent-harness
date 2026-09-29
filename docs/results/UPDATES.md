@@ -3,6 +3,24 @@
 Newest first. Each entry states what changed, how it was verified, and what was measured. Results from before the
 Rust migration are in [`LEGACY.md`](LEGACY.md).
 
+## 2026-09-30 - Legacy hub removed; Docker only for the first install
+
+**Change.**
+- Removed the Node (Fastify) + PostgreSQL + MongoDB hub (`hub/src`, `hub/migrations`, `package*.json`,
+  `docker-compose.yml`, `start.ps1`, `run-server.ps1`) and the bootstrap's `start.ps1` fallback and `HUB_DIR` key.
+  `hub/` now holds only the Python client tools (hooks, `obs.py`, spool, SDKs).
+- Removed the Node-vs-Rust parity test (`tests/system/`). It was a one-time migration check (0 mismatches, see the
+  entry below); it needs the removed Node hub and a Postgres container. History: commit `726feb0`.
+- `install.ps1 -WithHub` now builds the Rust hub **once** in Docker (runs `cargo test`, then the Windows build),
+  copies `obs-hub.exe`/`obs-rs.exe` to `<harness>\bin`, stops Docker if it started it, and skips all of this when the
+  binaries are already installed. The running harness never uses Docker.
+- `tools/observability-client/obs.cmd` (repo copy) now carries the `obs-rs` dispatch with a relative `..\..\bin`
+  path, so reinstalling no longer overwrites it; `uninstall.ps1` also removes `bin\`.
+- Still kept for the rollback window: the one-time importer (`obs-hub import-postgres`, `scripts/obs-export-postgres.*`)
+  and, on the owner machine, the Postgres/Mongo Docker volumes plus a backup of the legacy hub files.
+
+**Verification.** Python unit suite and installer parse check; see commit message.
+
 ## 2026-09-30 - Observability hub rewritten in Rust + SQLite (sub-project #1)
 
 **Change.** `obs-hub` (crates/obs-hub) replaced the Node + PostgreSQL + MongoDB hub on the same URL
@@ -41,5 +59,6 @@ native hub (`e598577`); Docker is now needed only for Rust builds. Spec:
 - Deliberate deviations from the legacy hub: no per-project Postgres schemas (use `obs query --project`), no
   MongoDB technology memory (it was unused).
 
-**Rollback.** Stop `obs-hub`, remove `~/.agent-harness/bin/obs-hub.exe`, run `docker compose up -d` in
-`~/.codex-shared/tools/observability-hub` (volumes kept); the bootstrap falls back to `start.ps1`.
+**Rollback.** Stop `obs-hub` and remove `~/.agent-harness/bin/obs-hub.exe`; restore the legacy hub files from
+`~/.agent-harness/var/backups/legacy-node-hub-*` into `~/.codex-shared/tools/observability-hub`, then run its
+`start.ps1` (Postgres/Mongo volumes were kept). Since the next entry, the bootstrap no longer falls back to it.

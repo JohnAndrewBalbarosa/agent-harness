@@ -34,7 +34,6 @@ class Layout:
     root: Path
     orb_health: Path
     obs_endpoint: str
-    hub_dir: Path | None = None  # observability hub checkout (start.ps1); default <root>/hub
     orb_ui: bool = True  # ORB_UI=0: the orb runs headless (same logic and sounds, no window or tray)
 
     @property
@@ -45,7 +44,7 @@ class Layout:
 def default_layout(env: dict[str, str]) -> Layout:
     local = Path(env.get("LOCALAPPDATA") or Path.home())
     return Layout(ROOT, local / "CodexStatusOrb" / "health.json", env.get("OBS_ENDPOINT") or "http://127.0.0.1:4319",
-                  Path(env["HUB_DIR"]) if env.get("HUB_DIR") else None, str(env.get("ORB_UI", "")).strip() != "0")
+                  str(env.get("ORB_UI", "")).strip() != "0")
 
 
 def launch_detached(command: Sequence[str | Path], cwd: Path) -> None:
@@ -119,17 +118,13 @@ def native_hub_binary(root: Path) -> Path:
 
 
 def ensure_hub(layout: Layout, launch: Launch, healthy: Healthy) -> str:
-    """Prefer the native Rust hub; fall back to the legacy Node+Postgres hub (start.ps1)."""
-    native = native_hub_binary(layout.root)
-    start = (layout.hub_dir or layout.root / "hub") / "start.ps1"
-    if not native.exists() and not start.exists():
+    """Start the Rust hub when it is installed (`install.ps1 -WithHub`) and not answering."""
+    hub = native_hub_binary(layout.root)
+    if not hub.exists():
         return "not_installed"
     if healthy(layout.obs_endpoint.rstrip("/") + "/health"):
         return "already_running"
-    if native.exists():
-        launch([native, "serve"], native.parent)
-        return "requested_native"
-    launch(["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", start], start.parent)
+    launch([hub, "serve"], hub.parent)
     return "requested"
 
 
