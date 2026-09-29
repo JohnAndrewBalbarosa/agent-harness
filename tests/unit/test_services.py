@@ -86,6 +86,17 @@ class BootstrapTests(unittest.TestCase):
         self.assertEqual(bootstrap.ensure_hub(layout, self.launch, lambda url: False), "requested")
         self.assertIn(str(hub / "start.ps1"), self.launch.launched[0][0])
 
+    def test_native_hub_is_preferred_over_legacy_start_script(self):
+        (self.root / "hub").mkdir(parents=True)
+        (self.root / "hub" / "start.ps1").write_text("", encoding="utf-8")
+        native = bootstrap.native_hub_binary(self.root)
+        native.parent.mkdir(parents=True)
+        native.write_bytes(b"")
+        layout = bootstrap.Layout(self.root, self.orb_health, "http://127.0.0.1:1")
+        self.assertEqual(bootstrap.ensure_hub(layout, self.launch, lambda url: True), "already_running")
+        self.assertEqual(bootstrap.ensure_hub(layout, self.launch, lambda url: False), "requested_native")
+        self.assertEqual(self.launch.launched[0][0], (str(native), "serve"))
+
     def test_console_monitor_is_launched_when_present(self):
         self.run_bootstrap()
         self.assertEqual(self.launch.launched, [])

@@ -113,12 +113,22 @@ def ensure_orb(layout: Layout, launch: Launch) -> str:
     return "requested"
 
 
+def native_hub_binary(root: Path) -> Path:
+    """Rust hub (crates/obs-hub) installed into <root>/bin; one embedded SQLite file, no Docker."""
+    return root / "bin" / ("obs-hub.exe" if os.name == "nt" else "obs-hub")
+
+
 def ensure_hub(layout: Layout, launch: Launch, healthy: Healthy) -> str:
+    """Prefer the native Rust hub; fall back to the legacy Node+Postgres hub (start.ps1)."""
+    native = native_hub_binary(layout.root)
     start = (layout.hub_dir or layout.root / "hub") / "start.ps1"
-    if not start.exists():
+    if not native.exists() and not start.exists():
         return "not_installed"
     if healthy(layout.obs_endpoint.rstrip("/") + "/health"):
         return "already_running"
+    if native.exists():
+        launch([native, "serve"], native.parent)
+        return "requested_native"
     launch(["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", start], start.parent)
     return "requested"
 
