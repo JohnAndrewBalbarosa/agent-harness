@@ -2,10 +2,10 @@
 //! (int()/float() parsing, str slicing, repr, json.dumps, isoformat, uuid, redaction)
 //! so obs-rs output and spool rows are indistinguishable from obs.py's.
 
-mod json_text;
-mod redaction;
-mod time_text;
-mod uuid_text;
+pub mod json_text;
+pub mod redaction;
+pub mod time_text;
+pub mod uuid_text;
 
 pub use json_text::{python_float_repr, to_python_json, write_json_string, JsonLayout};
 pub use redaction::redact;

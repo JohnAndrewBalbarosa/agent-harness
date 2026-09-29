@@ -3,19 +3,7 @@
 //!
 //! This file only routes argv to a subcommand; every subcommand lives in `commands/`.
 
-mod argv;
-mod change_assessment;
-mod commands;
-mod failure;
-mod git;
-mod hub_client;
-mod operation;
-mod project_marker;
-mod project_resolution;
-mod python_compat;
-mod query;
-mod settings;
-mod spool;
+use obs_cli::{argv, commands, failure};
 
 use std::process::ExitCode;
 

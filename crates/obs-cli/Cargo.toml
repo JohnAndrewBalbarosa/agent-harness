@@ -5,6 +5,10 @@ edition.workspace = true
 license.workspace = true
 description = "obs-rs: Rust port of the obs.py observability CLI subset plus read-only `query`"
 
+[lib]
+name = "obs_cli"
+path = "src/lib.rs"
+
 [[bin]]
 name = "obs-rs"
 path = "src/main.rs"

@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/obs-common", "crates/obs-hub", "crates/obs-cli"]
+members = ["crates/obs-common", "crates/obs-hub", "crates/obs-cli", "crates/harness-hook"]
 
 [workspace.package]
 edition = "2021"
@@ -28,5 +28,4 @@ obs-common = { path = "crates/obs-common" }
 opt-level = "s"
 lto = true
 codegen-units = 1
-panic = "abort"
 strip = true
