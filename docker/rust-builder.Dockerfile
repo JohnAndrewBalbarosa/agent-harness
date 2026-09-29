@@ -1,0 +1,9 @@
+# Build/test image for the Rust workspace: Linux toolchain + Windows (GNU) cross target.
+FROM rust:1.98
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends gcc-mingw-w64-x86-64 \
+ && rm -rf /var/lib/apt/lists/* \
+ && rustup target add x86_64-pc-windows-gnu \
+ && rustup component add rustfmt clippy
+ENV CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER=x86_64-w64-mingw32-gcc
+WORKDIR /work

@@ -1,0 +1,27 @@
+[package]
+name = "obs-cli"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+description = "obs-rs: Rust port of the obs.py observability CLI subset plus read-only `query`"
+
+[[bin]]
+name = "obs-rs"
+path = "src/main.rs"
+
+[dependencies]
+anyhow.workspace = true
+chrono.workspace = true
+hex.workspace = true
+obs-common.workspace = true
+# hooks: SQLite authorizer that blocks ATTACH/DETACH/PRAGMA/load_extension in `query`.
+rusqlite = { workspace = true, features = ["hooks"] }
+# preserve_order: hub JSON must be re-printed in the key order obs.py (dict) keeps.
+serde_json = { workspace = true, features = ["preserve_order"] }
+# SHA-256 for project alias hashes (obs.py `digest`, hashlib.sha256).
+sha2 = "0.10"
+# Brings `next()` into scope for rusqlite::Batch (single-statement check in `query`).
+fallible-iterator = "0.3"
+ureq.workspace = true
+# v5: deterministic assessment ids (obs.py uuid.uuid5(NAMESPACE_URL, ...)).
+uuid = { workspace = true, features = ["v5"] }

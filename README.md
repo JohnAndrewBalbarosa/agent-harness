@@ -118,12 +118,33 @@ The harness-configured arm took **342.27 s (43.5%) longer** and used **$0.7846 (
 
 Local evidence was retained outside Git in `var/benchmarks/pilot-20260929-060900/`: `selection.json` (task IDs and base commits), `predictions-{harness,native}.jsonl`, `agent-*.result.json`, `agent-*.summary.json`, and the evaluator's `logs/evaluation/pilot-{harness,native}/results.json`. Those files are not published with this README because the agent responses and traces can contain raw task context. The two evaluator summary JSON files have SHA-256 hashes `8f412b696210f18453b6266a863ca12896db6caf0608b5e469eb170229d7e84f` (harness) and `b4ebc856581502a74c0610e5f545cfe76c50370488565c88274caf6639516839` (comparison).
 
+## Rust observability hub (`crates/`)
+
+`obs-hub` reimplements the observability hub (HTTP `127.0.0.1:4319`, 28 operation kinds, 12 routes) over one
+embedded SQLite file, replacing the Node hub + PostgreSQL + MongoDB containers. Spec:
+`docs/superpowers/specs/2026-09-30-obs-hub-rust-sqlite-design.md`.
+
+| Binary | Purpose |
+|---|---|
+| `obs-hub serve` | Hub; env `OBS_HOST`, `OBS_PORT`, `OBS_DB_PATH` (default `~/.agent-harness/var/obs/hub.sqlite3`), `OBS_LOG_LEVEL` |
+| `obs-hub import-postgres --dump <dir> --db <file>` | One-time migration from `scripts/obs-export-postgres.{ps1,sh}` output; refuses non-empty targets, verifies row counts. The dump holds raw prompts in plain text: delete it after import |
+| `obs-hub maintain` | Daily retention (30-day events, 365-day rollups) + incremental vacuum; also runs at startup and every 24 h |
+| `obs-rs` | Rust port of `obs.py` `errors`, `diagnose`, `trace`, `prompt show`, `analytics`, `change plan\|finish\|package`, `project register`, `flush`, plus read-only `query [--project <uuid>] "<SQL>"` (ATTACH/PRAGMA/extensions denied; `--project` views are a convenience, not isolation) |
+
+Measured on Windows 11: `obs-hub.exe` idles at ~9 MB working set (2.4 MB private); the stack it replaces used ~750 MB.
+
+```powershell
+.\scripts\rust-docker.ps1 build-windows   # -> target-windows\obs-hub.exe, obs-rs.exe (no local Rust needed)
+```
+
 ## Verification
 
 ```powershell
 uv run --with scipy==1.18.1 python -m unittest discover -s tests -t . -v   # unit, conformance, integration (needs npx)
 .\tests\test_installer.ps1
 .\scripts\verify-secrets.ps1
+.\scripts\rust-docker.ps1 fmt-check; .\scripts\rust-docker.ps1 clippy; .\scripts\rust-docker.ps1 test
+.\scripts\rust-docker.ps1 build-linux; python tests\system\obs_hub_parity.py   # Node vs Rust hub parity
 ```
 
 Secret verification downloads the official Gitleaks v8.30.1 archive, verifies its checksum, runs a synthetic

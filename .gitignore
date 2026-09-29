@@ -7,3 +7,5 @@ var/
 *.sqlite3*
 node_modules/
 .superpowers/
+target/
+target-windows/

@@ -1,0 +1,32 @@
+[workspace]
+resolver = "2"
+members = ["crates/obs-common", "crates/obs-hub", "crates/obs-cli"]
+
+[workspace.package]
+edition = "2021"
+license = "MIT"
+rust-version = "1.82"
+
+[workspace.dependencies]
+anyhow = "1"
+axum = { version = "=0.8.9", default-features = false, features = ["http1", "json", "tokio", "query"] }
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+hex = "0.4"
+rusqlite = { version = "0.37", features = ["bundled"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+thiserror = "2"
+tokio = { version = "1", features = ["rt", "net", "macros", "time", "signal", "sync"] }
+tower-http = { version = "0.6", default-features = false, features = ["limit"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", default-features = false, features = ["fmt", "env-filter", "ansi"] }
+ureq = { version = "2.12", default-features = false, features = ["json"] }
+uuid = { version = "1", features = ["v4", "v7"] }
+obs-common = { path = "crates/obs-common" }
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
