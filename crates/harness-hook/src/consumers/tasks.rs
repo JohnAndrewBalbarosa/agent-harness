@@ -162,14 +162,15 @@ fn sanitize(text: &str) -> String {
         .collect()
 }
 
-/// `path.with_suffix(".tmp")`.
+/// Unique `<stem>.<pid>.<nanos>.tmp` (Python used a fixed `path.with_suffix(".tmp")`, which collides when
+/// two hooks write the same file).
 #[inline]
 fn temp_file_name(path: &Path) -> String {
     let stem = path
         .file_stem()
         .map(|stem| stem.to_string_lossy().into_owned())
         .unwrap_or_default();
-    format!("{stem}.tmp")
+    crate::shared_state::atomic_write::unique_temp_name(&stem)
 }
 
 /// `datetime.now(timezone.utc).isoformat()`: microseconds only when non-zero, `+00:00` offset.

@@ -10,11 +10,13 @@ use obs_cli::python_compat::{
 };
 use serde_json::{json, Value};
 
-use crate::shared_state::atomic_write::replace_file;
+use crate::shared_state::atomic_write::{replace_file, unique_temp_name};
+use crate::shared_state::file_lock::with_sidecar_lock_within;
 
 pub const AUDIT_FILE_NAME: &str = "hook-invocations.jsonl";
 /// `HOOK_AUDIT_PATH.with_suffix(".tmp")`.
-const AUDIT_TEMP_NAME: &str = "hook-invocations.tmp";
+const AUDIT_TEMP_BASE: &str = "hook-invocations";
+const AUDIT_LOCK_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(2);
 const MAX_RECORDS: usize = 500;
 const ERROR_TYPE_LIMIT: usize = 120;
 
@@ -27,11 +29,20 @@ pub fn record(var_dir: &Path, hook_event: &str, started: Instant, error: Option<
     );
     let audit_path = var_dir.join(AUDIT_FILE_NAME);
 
-    let mut retained = retained_lines(&audit_path);
-    retained.push(line);
-    // Python `write_text` translates "\n" to the platform line ending (CRLF on Windows).
-    let text = with_platform_newlines(&(retained.join("\n") + "\n"));
-    let _ = replace_file(&audit_path, AUDIT_TEMP_NAME, text.as_bytes(), false);
+    // Read-modify-write under a short sidecar lock so concurrent hooks do not drop each other's lines;
+    // the audit is best effort, so a busy lock skips the record instead of delaying the hook.
+    let _ = with_sidecar_lock_within(&audit_path, AUDIT_LOCK_TIMEOUT, || {
+        let mut retained = retained_lines(&audit_path);
+        retained.push(line);
+        // Python `write_text` translates "\n" to the platform line ending (CRLF on Windows).
+        let text = with_platform_newlines(&(retained.join("\n") + "\n"));
+        replace_file(
+            &audit_path,
+            &unique_temp_name(AUDIT_TEMP_BASE),
+            text.as_bytes(),
+            false,
+        )
+    });
 }
 
 fn audit_record(hook_event: &str, started: Instant, error: Option<&anyhow::Error>) -> Value {

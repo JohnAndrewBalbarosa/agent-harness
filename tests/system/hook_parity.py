@@ -32,7 +32,12 @@ STEP_TIMEOUT_S = 180
 DETACHED_SETTLE_S = 4.0
 EXPECTED_LAUNCH_DEVIATIONS = {
     "toast": "context-guard honours AH_NOTIFY_DRY_RUN in Rust (Python always toasts)",
-    "flush_spool": "obs: sync flush removed / one detached flush per hook",
+    "flush_spool": "obs: sync flush removed; detached flush throttled to one per 3 s (always at turn/session end)",
+}
+# Files only the Rust side creates, by design (review fixes after the first parity run).
+EXPECTED_RUST_ONLY_FILES = {
+    "flush-spawn.stamp": "obs: flush throttle stamp",
+    "hook-invocations.jsonl.lock": "obs: invocation audit rewrite is now locked (concurrent hooks lost lines)",
 }
 
 
@@ -156,6 +161,13 @@ def compare_outputs(a: StepRun, b: StepRun) -> list[Mismatch]:
 def classify(scenario: Scenario, mismatch: Mismatch) -> str | None:
     if scenario.expected_deviation:
         return scenario.expected_deviation
+    if "turn-usage" in mismatch.path and mismatch.path.endswith("projectId"):
+        return ("usage-fallback: Rust serialises spool access, so usage gets the session's project; Python "
+                "raced obs and fell back to the global project")
+    if mismatch.detail == "file only in B":
+        for suffix, reason in EXPECTED_RUST_ONLY_FILES.items():
+            if mismatch.path.endswith(suffix):
+                return reason
     return None
 
 

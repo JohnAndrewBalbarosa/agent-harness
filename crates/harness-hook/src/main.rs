@@ -2,6 +2,15 @@
 
 use std::io::{Read, Write};
 use std::process::ExitCode;
+use std::sync::mpsc;
+use std::time::Duration;
+
+/// Hook payloads are small JSON documents; anything larger is truncated (and then fails to parse).
+const MAX_STDIN_BYTES: u64 = 8 * 1024 * 1024;
+/// An agent that never closes stdin must not hang the hook.
+const STDIN_TIMEOUT: Duration = Duration::from_secs(5);
+/// Not valid UTF-8: the router reports `hook.payload.invalid` and prints the safe default.
+const UNREADABLE_STDIN: &[u8] = &[0xff];
 
 fn main() -> ExitCode {
     let arguments: Vec<String> = std::env::args().skip(1).collect();
@@ -17,10 +26,19 @@ fn main() -> ExitCode {
     ExitCode::SUCCESS
 }
 
+// Mental model: read on a helper thread (bounded size) → wait at most STDIN_TIMEOUT → otherwise invalid.
 fn read_all_stdin() -> Vec<u8> {
-    let mut buffer = Vec::new();
-    let _ = std::io::stdin().read_to_end(&mut buffer);
-    buffer
+    let (sender, receiver) = mpsc::channel();
+    std::thread::spawn(move || {
+        let mut buffer = Vec::new();
+        let _ = std::io::stdin()
+            .take(MAX_STDIN_BYTES)
+            .read_to_end(&mut buffer);
+        let _ = sender.send(buffer);
+    });
+    receiver
+        .recv_timeout(STDIN_TIMEOUT)
+        .unwrap_or_else(|_| UNREADABLE_STDIN.to_vec())
 }
 
 fn write_stdout(output: &str) {

@@ -72,18 +72,29 @@ pub fn consumer_timeout(log: &Path, consumer: &str, timeout: Duration) {
 }
 
 /// harness_hook.py:65.
-pub fn consumer_exited(log: &Path, consumer: &str, exit_code: i32, duration: Duration) {
-    let pairs = [
+/// `error` is added only for failed consumers (the Python router discarded consumer stderr, so failures
+/// were silent); it is bounded and never contains payload data, only the error chain text.
+pub fn consumer_exited(
+    log: &Path,
+    consumer: &str,
+    exit_code: i32,
+    duration: Duration,
+    error: Option<&str>,
+) {
+    let mut record = details([
         ("consumer", json!(consumer)),
         ("exitCode", json!(exit_code)),
         ("durationMs", milliseconds_value(duration)),
-    ];
+    ]);
+    if let Some(error) = error {
+        record.insert("error".into(), json!(error));
+    }
     emit(
         log,
         COMPONENT,
         "consumer.exited",
         outcome_for(exit_code),
-        details(pairs),
+        record,
     );
 }
 

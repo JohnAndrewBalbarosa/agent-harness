@@ -3,9 +3,14 @@
 //! over the whole file on Windows (and `flock` elsewhere), which overlaps byte 0, so both sides exclude
 //! each other.
 
-use std::fs::{File, OpenOptions};
+use std::fs::{File, OpenOptions, TryLockError};
 use std::io;
 use std::path::{Path, PathBuf};
+use std::time::{Duration, Instant};
+
+/// Python's `msvcrt.locking(LK_LOCK)` gives up after about 10 s; a hook must never wait longer.
+pub const DEFAULT_LOCK_TIMEOUT: Duration = Duration::from_secs(10);
+const RETRY_INTERVAL: Duration = Duration::from_millis(10);
 
 /// Holds the lock until dropped.
 pub struct SidecarLock {
@@ -18,16 +23,44 @@ impl Drop for SidecarLock {
     }
 }
 
-/// Blocks until the sidecar lock of `path` is held.
+/// Waits up to `DEFAULT_LOCK_TIMEOUT` for the sidecar lock of `path`.
 pub fn lock_sidecar(path: &Path) -> io::Result<SidecarLock> {
-    let file = open_sidecar(&sidecar_path(path))?;
-    file.lock()?;
-    Ok(SidecarLock { file })
+    lock_sidecar_within(path, DEFAULT_LOCK_TIMEOUT)
 }
 
-/// Runs `work` while holding the sidecar lock of `path`.
+// Mental model: open the sidecar → retry a non-blocking lock every 10 ms → give up at the deadline
+// (a wedged holder in another process must not hang the hook).
+pub fn lock_sidecar_within(path: &Path, timeout: Duration) -> io::Result<SidecarLock> {
+    let file = open_sidecar(&sidecar_path(path))?;
+    let deadline = Instant::now() + timeout;
+    loop {
+        match file.try_lock() {
+            Ok(()) => return Ok(SidecarLock { file }),
+            Err(TryLockError::Error(error)) => return Err(error),
+            Err(TryLockError::WouldBlock) if Instant::now() >= deadline => {
+                return Err(io::Error::new(
+                    io::ErrorKind::TimedOut,
+                    "sidecar lock timed out",
+                ));
+            }
+            Err(TryLockError::WouldBlock) => std::thread::sleep(RETRY_INTERVAL),
+        }
+    }
+}
+
+/// Runs `work` while holding the sidecar lock of `path` (bounded wait).
 pub fn with_sidecar_lock<T>(path: &Path, work: impl FnOnce() -> io::Result<T>) -> io::Result<T> {
     let _guard = lock_sidecar(path)?;
+    work()
+}
+
+/// Same as `with_sidecar_lock` with a caller-chosen bound.
+pub fn with_sidecar_lock_within<T>(
+    path: &Path,
+    timeout: Duration,
+    work: impl FnOnce() -> io::Result<T>,
+) -> io::Result<T> {
+    let _guard = lock_sidecar_within(path, timeout)?;
     work()
 }
 
@@ -63,6 +96,20 @@ mod tests {
             sidecar_path(Path::new("/tmp/x/state.json")),
             PathBuf::from("/tmp/x/state.json.lock")
         );
+    }
+
+    #[test]
+    fn a_held_lock_times_out_instead_of_blocking() {
+        let dir = tempfile::tempdir().unwrap();
+        let target = dir.path().join("held.json");
+        let _holder = lock_sidecar(&target).unwrap();
+        let started = Instant::now();
+        let waited = lock_sidecar_within(&target, Duration::from_millis(50));
+        assert_eq!(
+            waited.err().map(|error| error.kind()),
+            Some(io::ErrorKind::TimedOut)
+        );
+        assert!(started.elapsed() < Duration::from_secs(2));
     }
 
     #[test]

@@ -19,6 +19,8 @@ use crate::hook_context::HookContext;
 pub const TIMEOUT_EXIT_CODE: i32 = 124;
 pub const LAUNCH_FAILED_EXIT_CODE: i32 = 127;
 pub const FAILURE_EXIT_CODE: i32 = 1;
+/// Agents kill hooks at 30 s; the router stops waiting for any consumer well before that.
+pub const MAX_CONSUMER_WAIT: Duration = Duration::from_secs(18);
 
 /// A consumer thread that has been started and not yet collected.
 struct RunningConsumer {
@@ -33,7 +35,11 @@ struct FinishedConsumer {
     exit_code: i32,
     stdout: String,
     duration: Duration,
+    error: Option<String>,
 }
+
+/// Consumer error text kept in the lifecycle log (anyhow chain, bounded).
+const MAX_ERROR_CHARS: usize = 300;
 
 // Mental model: start all threads first (parallel), then collect in registry order, each wait bounded by
 // that consumer's own deadline.
@@ -93,14 +99,20 @@ fn run_guarded(
     started: Instant,
 ) -> FinishedConsumer {
     let outcome = panic::catch_unwind(AssertUnwindSafe(|| consumer.run(context)));
-    let (exit_code, stdout) = match outcome {
-        Ok(Ok(result)) => (result.exit_code, bounded_stdout(&result.stdout)),
-        Ok(Err(_)) | Err(_) => (FAILURE_EXIT_CODE, String::new()),
+    let (exit_code, stdout, error) = match outcome {
+        Ok(Ok(result)) => (result.exit_code, bounded_stdout(&result.stdout), None),
+        Ok(Err(failure)) => (
+            FAILURE_EXIT_CODE,
+            String::new(),
+            Some(bounded_error(&failure)),
+        ),
+        Err(_) => (FAILURE_EXIT_CODE, String::new(), Some("panic".to_owned())),
     };
     FinishedConsumer {
         exit_code,
         stdout,
         duration: started.elapsed(),
+        error,
     }
 }
 
@@ -108,7 +120,7 @@ fn collect_consumer(consumer: RunningConsumer, log: &Path) -> ConsumerResult {
     let Some(receiver) = consumer.finished else {
         return ConsumerResult::failed(consumer.name, LAUNCH_FAILED_EXIT_CODE);
     };
-    let remaining = consumer.timeout.saturating_sub(consumer.started.elapsed());
+    let remaining = bounded_wait(consumer.timeout).saturating_sub(consumer.started.elapsed());
 
     match receiver.recv_timeout(remaining) {
         Ok(finished) => {
@@ -117,6 +129,7 @@ fn collect_consumer(consumer: RunningConsumer, log: &Path) -> ConsumerResult {
                 consumer.name,
                 finished.exit_code,
                 finished.duration,
+                finished.error.as_deref(),
             );
             ConsumerResult {
                 name: consumer.name,
@@ -134,8 +147,22 @@ fn collect_consumer(consumer: RunningConsumer, log: &Path) -> ConsumerResult {
                 consumer.name,
                 FAILURE_EXIT_CODE,
                 Duration::ZERO,
+                Some("consumer thread ended without a result"),
             );
             ConsumerResult::failed(consumer.name, FAILURE_EXIT_CODE)
         }
     }
+}
+
+#[inline]
+fn bounded_wait(timeout: Duration) -> Duration {
+    timeout.min(MAX_CONSUMER_WAIT)
+}
+
+#[inline]
+fn bounded_error(failure: &anyhow::Error) -> String {
+    format!("{failure:#}")
+        .chars()
+        .take(MAX_ERROR_CHARS)
+        .collect()
 }

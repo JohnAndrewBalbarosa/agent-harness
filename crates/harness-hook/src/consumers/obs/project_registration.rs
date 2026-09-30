@@ -6,7 +6,6 @@
 
 use std::path::{Path, PathBuf};
 
-use obs_cli::git::git_value;
 use obs_cli::project_resolution::{find_project_marker, ProjectMarker};
 use obs_cli::python_compat::uuid5_url_text;
 use serde_json::{json, Value};
@@ -83,7 +82,7 @@ fn project_aliases(root: &Path) -> Value {
     let path_text = root.to_string_lossy().to_lowercase();
     let mut aliases = vec![json!({"kind": PATH_ALIAS_KIND, "hash": sha256_hex(&path_text)})];
 
-    let remote = git_value(root, &["remote", "get-url", "origin"]);
+    let remote = super::origin_remote::origin_remote_url(root);
     if !remote.is_empty() {
         aliases
             .push(json!({"kind": REMOTE_ALIAS_KIND, "hash": sha256_hex(&remote.to_lowercase())}));

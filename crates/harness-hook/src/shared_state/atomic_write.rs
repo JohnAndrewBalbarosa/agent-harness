@@ -3,6 +3,15 @@
 use std::io::{self, Write};
 use std::path::Path;
 
+/// `<base>.<pid>.<nanos>.tmp`: unique per writer, so concurrent hooks never share (or delete) a temp file.
+pub fn unique_temp_name(base: &str) -> String {
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|elapsed| elapsed.as_nanos())
+        .unwrap_or_default();
+    format!("{base}.{}.{nanos}.tmp", std::process::id())
+}
+
 /// Writes `bytes` to `<target>`'s directory as `temp_name`, optionally fsyncs, then replaces `target`.
 pub fn replace_file(target: &Path, temp_name: &str, bytes: &[u8], sync: bool) -> io::Result<()> {
     let directory = target.parent().unwrap_or_else(|| Path::new("."));

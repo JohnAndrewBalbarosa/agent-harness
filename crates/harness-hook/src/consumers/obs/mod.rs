@@ -22,6 +22,7 @@ pub mod instruction_sources;
 pub mod invocation_audit;
 pub mod language_policy;
 pub mod operations;
+pub mod origin_remote;
 pub mod payload_fields;
 pub mod project_registration;
 pub mod prompt_lifecycle;
@@ -77,7 +78,10 @@ impl Consumer for ObsConsumer {
             usize::MAX,
         );
 
-        let outcome = process_hook(context, &payload, &location);
+        let outcome = {
+            let _spool_access = crate::shared_state::spool_access::lock_spool_access();
+            process_hook(context, &payload, &location)
+        };
         invocation_audit::record(
             &location.var_dir,
             &audit_event,

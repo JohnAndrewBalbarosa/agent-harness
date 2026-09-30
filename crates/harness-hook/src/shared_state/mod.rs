@@ -5,3 +5,4 @@
 pub mod atomic_write;
 pub mod file_lock;
 pub mod lifecycle_log;
+pub mod spool_access;

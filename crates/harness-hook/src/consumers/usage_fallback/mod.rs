@@ -66,8 +66,10 @@ pub fn handle(
 
     let usage = reader.turn_usage(Path::new(transcript), event.turn_id.as_deref());
     let spool = spool_enqueue::spool_path(env, harness_root);
+    let _spool_access = crate::shared_state::spool_access::lock_spool_access();
     let project_id = spool_enqueue::spool_project(&spool, &event.session_id)
         .filter(|project| !project.is_empty())
+        .or_else(|| marker_project(event.cwd.as_deref()))
         .unwrap_or_else(global_project_id);
     let record = build_record(event, &usage, &project_id);
 
@@ -116,4 +118,16 @@ fn append_local(directory: &Path, record: &Value) -> anyhow::Result<()> {
         append_keeping_newest(&path, LOG_MAX_RECORDS, &line)
     })
     .with_context(|| format!("unable to append {}", path.display()))
+}
+
+/// The obs consumer clears the session's context row at `turn.stop`, possibly before this consumer
+/// reads it; the project marker of `cwd` is what obs registered for that session, so it is the
+/// deterministic fallback (Python only got the row because its obs process was slower).
+fn marker_project(cwd: Option<&str>) -> Option<String> {
+    let cwd = cwd?;
+    obs_cli::project_resolution::find_project_marker(Path::new(cwd))
+        .ok()
+        .flatten()
+        .and_then(|marker| marker.project_id_text().ok())
+        .filter(|project| !project.is_empty())
 }

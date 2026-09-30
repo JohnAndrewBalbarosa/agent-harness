@@ -13,8 +13,12 @@ const PYTHON_ENV: &str = "HARNESS_PYTHON";
 const DEFAULT_PYTHON: &str = "python";
 const PYTHON_WORKER: &str = "flush_spool.py";
 
-/// Mental model: prefer obs-rs → else Python worker → else nothing (neither installed, e.g. tests).
+/// Mental model: throttle (except at turn/session end) → prefer obs-rs → else Python worker → else nothing
+/// (neither installed, e.g. tests).
 pub fn schedule(context: &HookContext, location: &SpoolLocation) {
+    if !is_flush_due(&context.event.event, &flush_stamp_path(location)) {
+        return;
+    }
     let command = obs_rs_flush(context, location).or_else(|| python_flush(context, location));
     if let Some(mut command) = command {
         detach(&mut command);
@@ -49,6 +53,31 @@ fn python_flush(context: &HookContext, location: &SpoolLocation) -> Option<Comma
         .envs(&context.env)
         .current_dir(&location.client_dir);
     Some(command)
+}
+
+/// A flush was spawned within this window: the queued operations will ride along with it (or the next
+/// one). Turn and session ends always flush so nothing waits for the next session.
+const FLUSH_SPAWN_INTERVAL: std::time::Duration = std::time::Duration::from_secs(3);
+const ALWAYS_FLUSH_EVENTS: [&str; 2] = ["turn.stop", "session.end"];
+const FLUSH_STAMP_NAME: &str = "flush-spawn.stamp";
+
+/// Checks and refreshes the spawn stamp; a missing or unreadable stamp means "due".
+fn is_flush_due(event: &str, stamp: &Path) -> bool {
+    let is_recent = std::fs::metadata(stamp)
+        .and_then(|meta| meta.modified())
+        .ok()
+        .and_then(|modified| modified.elapsed().ok())
+        .is_some_and(|age| age < FLUSH_SPAWN_INTERVAL);
+    if is_recent && !ALWAYS_FLUSH_EVENTS.contains(&event) {
+        return false;
+    }
+    let _ = std::fs::write(stamp, b"");
+    true
+}
+
+#[inline]
+fn flush_stamp_path(location: &SpoolLocation) -> PathBuf {
+    location.client_dir.join("var").join(FLUSH_STAMP_NAME)
 }
 
 #[inline]

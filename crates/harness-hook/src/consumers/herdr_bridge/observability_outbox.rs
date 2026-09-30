@@ -77,6 +77,7 @@ pub fn spool_path(harness_root: &Path, env: &BTreeMap<String, String>) -> PathBu
 
 /// obs.py `enqueue`: one write transaction, `INSERT OR IGNORE`, trim to the newest cap rows.
 pub fn persist_operations(spool: &Path, operations: &[Value]) -> anyhow::Result<()> {
+    let _spool_access = crate::shared_state::spool_access::lock_spool_access();
     let conn = open_spool_at(spool)
         .map_err(|failure| anyhow::anyhow!("spool open failed: {failure:?}"))?;
     insert_and_trim(

@@ -5,18 +5,18 @@
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
+use std::time::Duration;
 
 use obs_cli::python_compat::json_text::{to_python_json, JsonLayout};
 use serde_json::{json, Map, Value};
 
-use super::file_lock::with_sidecar_lock;
+use super::file_lock::with_sidecar_lock_within;
 use crate::events::utc_now_millis;
 
 pub const MAX_BYTES: u64 = 1_048_576;
 pub const BACKUPS: usize = 2;
-
-static THREAD_LOCK: Mutex<()> = Mutex::new(());
+/// A log line is not worth delaying the hook for: skip it when the log is locked longer than this.
+const LOG_LOCK_TIMEOUT: Duration = Duration::from_secs(2);
 
 /// `lifecycle.emit(path, component, operation, outcome, **details)`; `details` keeps insertion order.
 pub fn emit(
@@ -36,9 +36,7 @@ pub fn emit(
     let mut line = to_python_json(&record, JsonLayout::Compact, false);
     line.push('\n');
 
-    let _thread_guard = THREAD_LOCK
-        .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    // Each call opens its own sidecar handle, so the file lock also serialises threads of this process.
     let _ = append_line(path, line.as_bytes());
 }
 
@@ -54,7 +52,7 @@ fn append_line(path: &Path, line: &[u8]) -> std::io::Result<()> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
     }
-    with_sidecar_lock(path, || {
+    with_sidecar_lock_within(path, LOG_LOCK_TIMEOUT, || {
         rotate_when_full(path)?;
         OpenOptions::new()
             .create(true)
