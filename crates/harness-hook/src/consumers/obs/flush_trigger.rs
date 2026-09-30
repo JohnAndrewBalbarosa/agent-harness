@@ -16,7 +16,7 @@ const PYTHON_WORKER: &str = "flush_spool.py";
 /// Mental model: throttle (except at turn/session end) → prefer obs-rs → else Python worker → else nothing
 /// (neither installed, e.g. tests).
 pub fn schedule(context: &HookContext, location: &SpoolLocation) {
-    if !is_flush_due(&context.event.event, &flush_stamp_path(location)) {
+    if !is_flush_due_for_spool(&context.event.event, &location.spool_file) {
         return;
     }
     let command = obs_rs_flush(context, location).or_else(|| python_flush(context, location));
@@ -61,6 +61,13 @@ const FLUSH_SPAWN_INTERVAL: std::time::Duration = std::time::Duration::from_secs
 const ALWAYS_FLUSH_EVENTS: [&str; 2] = ["turn.stop", "session.end"];
 const FLUSH_STAMP_NAME: &str = "flush-spawn.stamp";
 
+/// Shared by every consumer that spawns a flusher for a spool (obs, herdr-bridge): one stamp per spool
+/// directory, so all of them together start at most one flusher per interval.
+pub fn is_flush_due_for_spool(event: &str, spool_file: &Path) -> bool {
+    let directory = spool_file.parent().unwrap_or_else(|| Path::new("."));
+    is_flush_due(event, &directory.join(FLUSH_STAMP_NAME))
+}
+
 /// Checks and refreshes the spawn stamp; a missing or unreadable stamp means "due".
 fn is_flush_due(event: &str, stamp: &Path) -> bool {
     let is_recent = std::fs::metadata(stamp)
@@ -73,11 +80,6 @@ fn is_flush_due(event: &str, stamp: &Path) -> bool {
     }
     let _ = std::fs::write(stamp, b"");
     true
-}
-
-#[inline]
-fn flush_stamp_path(location: &SpoolLocation) -> PathBuf {
-    location.client_dir.join("var").join(FLUSH_STAMP_NAME)
 }
 
 #[inline]

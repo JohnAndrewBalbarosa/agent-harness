@@ -118,6 +118,10 @@ fn start_flusher(
     log: &BridgeLog,
 ) {
     let flusher = harness_root.join("bin").join("obs-rs.exe");
+    // Same throttle and stamp as the obs consumer; obs always flushes at turn/session end.
+    if !crate::consumers::obs::flush_trigger::is_flush_due_for_spool("", spool) {
+        return;
+    }
     if !flusher.is_file() {
         return;
     }
