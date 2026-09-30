@@ -1,6 +1,12 @@
 @echo off
 rem agent-harness entry point: harness-hook <agent> [<native-event>]  (hook payload on stdin)
 setlocal
+rem Rust hook (crates/harness-hook, installed by install.ps1 -WithHub) when present; the Python router
+rem below stays as the fallback. The exe resolves HARNESS_HOME from its own location (<root>\bin).
+if exist "%~dp0..\..\bin\harness-hook.exe" (
+  "%~dp0..\..\bin\harness-hook.exe" %* 2>nul
+  exit /b 0
+)
 if not defined HARNESS_PYTHON if exist "%~dp0..\..\var\python.path" set /p HARNESS_PYTHON=<"%~dp0..\..\var\python.path"
 if not defined HARNESS_PYTHON set "HARNESS_PYTHON=%APPDATA%\uv\python\cpython-3.14.7-windows-x86_64-none\python.exe"
 if not exist "%HARNESS_PYTHON%" set "HARNESS_PYTHON=python"

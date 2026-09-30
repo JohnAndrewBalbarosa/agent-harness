@@ -3,6 +3,52 @@
 Newest first. Each entry states what changed, how it was verified, and what was measured. Results from before the
 Rust migration are in [`LEGACY.md`](LEGACY.md).
 
+## 2026-09-30 - Hook path rewritten in Rust (sub-project #2)
+
+**Change.** `harness-hook.exe` (crates/harness-hook) replaces the Python router and its per-consumer Python
+subprocesses (up to 5 per hook event; `obs` alone chained 3). All nine consumers run in-process on threads:
+obs, notify, tasks, usage-fallback, context-guard, context, services, orb (hook side), herdr-bridge (hook side).
+`core/router/harness-hook.cmd` runs the exe when `<harness>\bin\harness-hook.exe` exists, else the Python router.
+Spec: `docs/superpowers/specs/2026-09-30-harness-hook-rust-design.md`. Code: `ab3e522`, `39d799d`.
+
+**Verification.**
+
+| Check | Result |
+|---|---|
+| clippy -D warnings, `cargo test --workspace` | pass, 421 tests |
+| Windows cross-build (Windows-only code paths) | pass |
+| Parity vs the Python router (`tests/system/hook_parity.py`, 26 scenarios / 59 hooks, Claude + Codex) | 0 unexpected mismatches, 22 expected |
+| Code review before cutover | 0 critical; 3 high (unbounded lock wait, log mutex deadlock, unbounded stdin) fixed |
+| Live cutover smoke test | Codex `Stop` stdout `{"continue": true}`, exit 0; 0 failed dispatches since cutover |
+
+**Bugs found on the way (fixed in Rust).**
+- The Python router drops a hook entirely when the payload contains a lone UTF-16 surrogate (`\ud800`); Rust
+  processes it (U+FFFD).
+- First-turn token usage of a new session was attributed to the global project: the Python `usage-fallback`
+  raced the `obs` consumer for the session row. Rust serialises spool access and falls back to the cwd marker.
+- herdr-bridge never delivered `herdr.binding` / `agent-state.record` / `turn-usage.record` (it imported a
+  non-existent `obs.py`); these now reach the spool.
+- Concurrent consumers in one process could hit `SQLITE_BUSY` on the spool (found by the parity test).
+
+**Measured (sandbox parity run, median; same machine, same run).**
+
+| Event | Python | Rust |
+|---|---:|---:|
+| `PostToolUse` (every tool call) | 527-813 ms | 93-148 ms |
+| `UserPromptSubmit` | 546-771 ms | 89-121 ms |
+| `Stop` | 670-1179 ms | 168-378 ms |
+| `PermissionRequest` / `Notification` | 320-492 ms | 25-106 ms |
+| `SubagentStart/Stop` | 243-339 ms | 16-26 ms |
+
+**Interpretation.**
+- The target of 30 ms per tool call is not met. Inside Herdr, the `herdr-bridge` consumer now dominates: it runs
+  the `herdr` CLI on every hook (`pane report-agent`, plus `pane read`/`agent explain` on state changes), 155-1267 ms
+  in the first live samples. Next optimisation: report to Herdr only when the projected state changes.
+- First live samples right after installing a new exe are noisy (Defender first-run scans, 93% RAM in use);
+  re-measure after a day of use.
+
+**Rollback.** Delete `~\.agent-harness\bin\harness-hook.exe`; the shim falls back to the Python router.
+
 ## 2026-09-30 - Legacy hub removed; Docker only for the first install
 
 **Change.**
