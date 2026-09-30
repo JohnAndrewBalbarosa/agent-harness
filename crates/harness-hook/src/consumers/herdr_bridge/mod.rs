@@ -171,7 +171,7 @@ fn drive_hook(
 
     queue_records(hook, &previous, decision.as_ref(), sequence, outbox);
     if hook.is_inside_herdr() {
-        project_to_herdr(
+        let reported = project_to_herdr(
             hook,
             &previous,
             decision.as_ref(),
@@ -180,6 +180,10 @@ fn drive_hook(
             log,
             outbox,
         );
+        if let Some(report) = reported {
+            remember_report(&mut record, &report);
+            write_state(&state_path, &record)?;
+        }
     }
 
     if hook.event == "SessionEnd" {
@@ -275,8 +279,43 @@ fn turn_usage_data(hook: &BridgeHook, sequence: i64) -> Value {
     Value::Object(data)
 }
 
-// Mental model: SessionStart → report-agent-session; decision → report-agent (logged) → evidence when the
-// canonical state changed or the projection failed.
+/// What was last sent to Herdr for this session (kept in the session state file).
+struct HerdrReport {
+    projected: String,
+    message: String,
+    is_ok: bool,
+}
+
+const REPORTED_STATE_KEY: &str = "herdr_reported_state";
+const REPORTED_MESSAGE_KEY: &str = "herdr_reported_message";
+const REPORTED_AT_KEY: &str = "herdr_reported_at";
+const REPORT_OK_KEY: &str = "herdr_report_ok";
+/// Herdr still gets a report at least this often while nothing changes (liveness).
+const REPORT_HEARTBEAT_SECONDS: f64 = 30.0;
+
+/// A report is due when the projected state or message changed, the last report failed, or the
+/// heartbeat interval passed. (Python reported on every hook: one `herdr` process per tool call.)
+fn is_report_due(previous: &Map<String, Value>, projected: &str, message: &str, now: f64) -> bool {
+    let is_same_state = previous.get(REPORTED_STATE_KEY).and_then(Value::as_str) == Some(projected);
+    let is_same_message =
+        previous.get(REPORTED_MESSAGE_KEY).and_then(Value::as_str) == Some(message);
+    let was_ok = previous.get(REPORT_OK_KEY).and_then(Value::as_bool) == Some(true);
+    let is_fresh = previous
+        .get(REPORTED_AT_KEY)
+        .and_then(Value::as_f64)
+        .is_some_and(|reported_at| now - reported_at < REPORT_HEARTBEAT_SECONDS);
+    !(is_same_state && is_same_message && was_ok && is_fresh)
+}
+
+fn remember_report(record: &mut Map<String, Value>, report: &HerdrReport) {
+    record.insert(REPORTED_STATE_KEY.into(), json!(report.projected));
+    record.insert(REPORTED_MESSAGE_KEY.into(), json!(report.message));
+    record.insert(REPORTED_AT_KEY.into(), json!(now_seconds()));
+    record.insert(REPORT_OK_KEY.into(), json!(report.is_ok));
+}
+
+// Mental model: SessionStart → report-agent-session; decision → report-agent only when due (logged) →
+// evidence when the canonical state changed or the projection failed.
 fn project_to_herdr(
     hook: &BridgeHook,
     previous: &Map<String, Value>,
@@ -285,7 +324,7 @@ fn project_to_herdr(
     runner: &dyn HerdrRunner,
     log: &BridgeLog,
     outbox: &mut ObservabilityOutbox,
-) {
+) -> Option<HerdrReport> {
     let identity = &hook.identity;
     let pane = identity.pane_id.as_str();
     let sequence_text = sequence.to_string();
@@ -308,11 +347,13 @@ fn project_to_herdr(
             DEFAULT_OUTPUT_LIMIT,
         );
     }
-    let Some(decision) = decision else {
-        return;
-    };
+    let decision = decision?;
 
     let message = format!("{}: {}", decision.canonical, decision.reason);
+    let is_state_change = is_state_change(previous, decision);
+    if !is_state_change && !is_report_due(previous, decision.projected, &message, now_seconds()) {
+        return None;
+    }
     let projected = runner.run(
         &owned(&[
             "pane",
@@ -346,7 +387,7 @@ fn project_to_herdr(
         ],
     );
 
-    if !identity.project_id.is_empty() && (is_state_change(previous, decision) || !is_projected) {
+    if !identity.project_id.is_empty() && (is_state_change || !is_projected) {
         let request = EvidenceRequest {
             project_id: &identity.project_id,
             native_session: &identity.native_session,
@@ -359,6 +400,11 @@ fn project_to_herdr(
         };
         capture_evidence(&request, runner, outbox);
     }
+    Some(HerdrReport {
+        projected: decision.projected.to_owned(),
+        message,
+        is_ok: is_projected,
+    })
 }
 
 /// `print(json.dumps({"hookSpecificOutput": {...}}, ensure_ascii=False))` when the hub has context.
@@ -437,4 +483,65 @@ fn now_seconds() -> f64 {
         .duration_since(UNIX_EPOCH)
         .map(|elapsed| elapsed.as_secs_f64())
         .unwrap_or(0.0)
+}
+
+#[cfg(test)]
+mod report_throttle_tests {
+    use super::*;
+
+    fn previous(state: &str, message: &str, at: f64, ok: bool) -> Map<String, Value> {
+        let mut record = Map::new();
+        remember_report(
+            &mut record,
+            &HerdrReport {
+                projected: state.to_owned(),
+                message: message.to_owned(),
+                is_ok: ok,
+            },
+        );
+        record.insert(REPORTED_AT_KEY.into(), json!(at));
+        record
+    }
+
+    #[test]
+    fn unchanged_fresh_successful_report_is_skipped() {
+        let last = previous("working", "working: tool completed", 1000.0, true);
+        assert!(!is_report_due(
+            &last,
+            "working",
+            "working: tool completed",
+            1010.0
+        ));
+    }
+
+    #[test]
+    fn changes_failures_and_heartbeat_trigger_a_report() {
+        let last = previous("working", "working: tool completed", 1000.0, true);
+        assert!(is_report_due(&last, "done", "ready: turn finished", 1001.0));
+        assert!(is_report_due(
+            &last,
+            "working",
+            "working: prompt submitted",
+            1001.0
+        ));
+        assert!(is_report_due(
+            &last,
+            "working",
+            "working: tool completed",
+            1031.0
+        ));
+        let failed = previous("working", "working: tool completed", 1000.0, false);
+        assert!(is_report_due(
+            &failed,
+            "working",
+            "working: tool completed",
+            1001.0
+        ));
+        assert!(is_report_due(
+            &Map::new(),
+            "working",
+            "working: tool completed",
+            1001.0
+        ));
+    }
 }
