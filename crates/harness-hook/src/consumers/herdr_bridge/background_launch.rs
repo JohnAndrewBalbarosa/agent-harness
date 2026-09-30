@@ -35,6 +35,13 @@ pub fn ensure_subscriber(harness_root: &Path, env: &BTreeMap<String, String>, lo
     if !is_inside_herdr || !has_socket {
         return;
     }
+    let socket_path = env
+        .get("HERDR_SOCKET_PATH")
+        .map(String::as_str)
+        .unwrap_or_default();
+    if is_subscriber_running(harness_root, socket_path) {
+        return;
+    }
     let script = harness_root
         .join("tools")
         .join("herdr-bridge")
@@ -160,5 +167,73 @@ mod tests {
         let env = BTreeMap::from([("HERDR_ENV".to_owned(), "1".to_owned())]);
         ensure_subscriber(dir.path(), &env, &log);
         assert!(!log.path().exists());
+    }
+}
+
+/// subscriber.py holds `var/herdr-bridge/subscriber-<sha256(socket)[:16]>.lock` for its lifetime
+/// (`msvcrt.locking` on byte 0). Probing it avoids starting a Python process on every hook only for it
+/// to exit because a subscriber already runs. Any doubt (missing file, I/O error) means "not running".
+fn is_subscriber_running(harness_root: &Path, socket_path: &str) -> bool {
+    let lock_path = subscriber_lock_path(harness_root, socket_path);
+    let Ok(file) = std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open(&lock_path)
+    else {
+        return false;
+    };
+    match file.try_lock() {
+        Ok(()) => {
+            let _ = file.unlock();
+            false
+        }
+        Err(std::fs::TryLockError::WouldBlock) => true,
+        Err(std::fs::TryLockError::Error(_)) => false,
+    }
+}
+
+#[inline]
+fn subscriber_lock_path(harness_root: &Path, socket_path: &str) -> std::path::PathBuf {
+    use sha2::{Digest, Sha256};
+    let identity = hex::encode(Sha256::digest(socket_path.as_bytes()));
+    harness_root
+        .join("var")
+        .join("herdr-bridge")
+        .join(format!("subscriber-{}.lock", &identity[..16]))
+}
+
+#[cfg(test)]
+mod subscriber_probe_tests {
+    use super::*;
+    use sha2::Digest;
+
+    #[test]
+    fn lock_path_matches_the_python_identity() {
+        let root = Path::new("/h");
+        let expected_identity = &hex::encode(sha2::Sha256::digest(b"sock"))[..16];
+        assert_eq!(
+            subscriber_lock_path(root, "sock"),
+            root.join("var")
+                .join("herdr-bridge")
+                .join(format!("subscriber-{expected_identity}.lock"))
+        );
+    }
+
+    #[test]
+    fn a_held_lock_means_running_and_a_free_one_does_not() {
+        let root = tempfile::tempdir().unwrap();
+        let lock_path = subscriber_lock_path(root.path(), "sock");
+        std::fs::create_dir_all(lock_path.parent().unwrap()).unwrap();
+        std::fs::write(&lock_path, b"").unwrap();
+        assert!(!is_subscriber_running(root.path(), "sock"));
+
+        let holder = std::fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open(&lock_path)
+            .unwrap();
+        holder.lock().unwrap();
+        assert!(is_subscriber_running(root.path(), "sock"));
+        assert!(!is_subscriber_running(root.path(), "other-socket"));
     }
 }
