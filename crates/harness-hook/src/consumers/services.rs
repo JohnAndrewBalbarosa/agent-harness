@@ -1,6 +1,7 @@
-//! `services` consumer (`core/services/consumer.py`): on `session.start`, detach
-//! `python -m core.services.bootstrap` (cwd = harness root) and return at once. The bootstrap itself stays
-//! Python until sub-project #3.
+//! `services` consumer (`core/services/consumer.py`): on `session.start`, detach the service bootstrap
+//! (cwd = harness root) and return at once:
+//! - `<root>/bin/harness-services.exe ensure` when the Rust services binary is installed;
+//! - else `python -m core.services.bootstrap` (the Python fallback until the cutover).
 //!
 //! Python interpreter, in `harness-hook.cmd` order: `HARNESS_PYTHON`, else the first line of
 //! `<root>/var/python.path`, else the pinned uv CPython under `%APPDATA%`; a path that does not exist falls
@@ -18,6 +19,8 @@ use crate::runtime_env::with_python_child_conventions;
 pub const NAME: &str = "services";
 pub const TIMEOUT: Duration = Duration::from_secs(10);
 pub const BOOTSTRAP_MODULE: &str = "core.services.bootstrap";
+const SERVICES_BINARY_STEM: &str = "harness-services";
+const ENSURE_MODE: &str = "ensure";
 const PINNED_UV_PYTHON: &str = r"uv\python\cpython-3.14.7-windows-x86_64-none\python.exe";
 const PATH_PYTHON: &str = "python";
 
@@ -54,8 +57,45 @@ impl Consumer for ServicesConsumer {
     }
 }
 
-/// `launch_detached([sys.executable, "-m", "core.services.bootstrap"], ROOT)`.
+// Mental model: native `harness-services ensure` when installed → else the Python bootstrap module.
+/// Detaches whichever bootstrap is installed; never waits for it.
 pub fn launch_bootstrap(context: &HookContext) -> std::io::Result<()> {
+    let native = native_services_binary(&context.harness_root);
+    if native.is_file() {
+        return launch_native_bootstrap(context, &native);
+    }
+    launch_python_bootstrap(context)
+}
+
+/// `<root>/bin/harness-services(.exe)`, installed by `install.ps1` next to `harness-hook`.
+#[inline]
+pub fn native_services_binary(harness_root: &Path) -> PathBuf {
+    harness_root.join("bin").join(format!(
+        "{SERVICES_BINARY_STEM}{}",
+        std::env::consts::EXE_SUFFIX
+    ))
+}
+
+/// `harness-services ensure` with the hook's merged runtime environment.
+fn launch_native_bootstrap(context: &HookContext, binary: &Path) -> std::io::Result<()> {
+    let mut command = Command::new(binary);
+    command
+        .arg(ENSURE_MODE)
+        .current_dir(&context.harness_root)
+        .env_clear()
+        .envs(&context.env)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null());
+    detach(&mut command);
+
+    let bootstrap = command.spawn()?;
+    leave_running(bootstrap);
+    Ok(())
+}
+
+/// `launch_detached([sys.executable, "-m", "core.services.bootstrap"], ROOT)`.
+fn launch_python_bootstrap(context: &HookContext) -> std::io::Result<()> {
     let python = harness_python(context);
     let mut command = Command::new(python);
     command
@@ -159,6 +199,16 @@ mod tests {
         )
         .unwrap();
         assert_eq!(harness_python(&context(dir.path(), &[])), python);
+    }
+
+    #[test]
+    fn native_binary_lives_in_the_root_bin_directory() {
+        let root = Path::new("/h");
+        assert_eq!(
+            native_services_binary(root),
+            root.join("bin")
+                .join(format!("harness-services{}", std::env::consts::EXE_SUFFIX))
+        );
     }
 
     #[test]

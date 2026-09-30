@@ -22,7 +22,8 @@ pub fn enqueue_and_flush(
     Ok(())
 }
 
-fn persist_operations(
+/// Durable enqueue without delivery (obs.py `enqueue(..., flush_now=False)`); a flusher delivers later.
+pub fn persist_operations(
     conn: &Connection,
     settings: &Settings,
     operations: &[Value],

@@ -111,7 +111,7 @@ fn insert_and_trim(conn: &Connection, operations: &[Value], cap: i64) -> rusqlit
 
 /// Detached `<root>/bin/obs-rs.exe flush` pinned to the same spool; absent binary → the spool waits for the
 /// next flusher (obs consumer / services).
-fn start_flusher(
+pub fn start_flusher(
     harness_root: &Path,
     env: &BTreeMap<String, String>,
     spool: &Path,

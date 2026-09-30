@@ -1,6 +1,6 @@
 //! Detached helper processes the bridge starts and never waits for: the Herdr event subscriber
-//! (`hook.py` `ensure_subscriber`, still `subscriber.py` until sub-project #3; it is single-instance itself)
-//! and the spool flusher.
+//! (`hook.py` `ensure_subscriber`: `bin/harness-services herdr-subscribe` when installed, else `subscriber.py`;
+//! both are single-instance per socket) and the spool flusher.
 //!
 //! Python interpreter: the one `harness-hook.cmd` would use (`HARNESS_PYTHON`, else the first line of
 //! `var/python.path`, else the pinned uv CPython, else `python` from `PATH`), because the Python bridge ran the
@@ -19,6 +19,7 @@ use super::herdr_cli::python_os_error_name;
 /// Windows `DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW`.
 #[cfg_attr(not(windows), allow(dead_code))]
 const DETACHED_FLAGS: u32 = 0x0000_0008 | 0x0000_0200 | 0x0800_0000;
+const NATIVE_SUBSCRIBE_MODE: &str = "herdr-subscribe";
 const PINNED_UV_PYTHON: [&str; 4] = [
     "uv",
     "python",
@@ -42,19 +43,11 @@ pub fn ensure_subscriber(harness_root: &Path, env: &BTreeMap<String, String>, lo
     if is_subscriber_running(harness_root, socket_path) {
         return;
     }
-    let script = harness_root
-        .join("tools")
-        .join("herdr-bridge")
-        .join("subscriber.py");
     let mut child_env = env.clone();
     child_env.insert("PYTHONUTF8".to_owned(), "1".to_owned());
+    let (program, args) = subscriber_command(harness_root, env);
 
-    match spawn_detached(
-        &harness_python(harness_root, env),
-        &[script.display().to_string()],
-        harness_root,
-        &child_env,
-    ) {
+    match spawn_detached(&program, &args, harness_root, &child_env) {
         Ok(process_id) => log.event(
             "subscriber.process.started",
             "started",
@@ -69,6 +62,34 @@ pub fn ensure_subscriber(harness_root: &Path, env: &BTreeMap<String, String>, lo
             vec![("error", json!(python_os_error_name(&error)))],
         ),
     }
+}
+
+// Mental model: `<root>/bin/harness-services(.exe) herdr-subscribe` when installed → else `subscriber.py`.
+/// The subscriber program and arguments to detach.
+fn subscriber_command(
+    harness_root: &Path,
+    env: &BTreeMap<String, String>,
+) -> (PathBuf, Vec<String>) {
+    let native = native_services_binary(harness_root);
+    if native.is_file() {
+        return (native, vec![NATIVE_SUBSCRIBE_MODE.to_owned()]);
+    }
+    let script = harness_root
+        .join("tools")
+        .join("herdr-bridge")
+        .join("subscriber.py");
+    (
+        harness_python(harness_root, env),
+        vec![script.display().to_string()],
+    )
+}
+
+/// `<root>/bin/harness-services(.exe)`.
+#[inline]
+fn native_services_binary(harness_root: &Path) -> PathBuf {
+    harness_root
+        .join("bin")
+        .join(format!("harness-services{}", std::env::consts::EXE_SUFFIX))
 }
 
 /// `harness-hook.cmd`'s interpreter resolution.
@@ -161,6 +182,21 @@ mod tests {
     }
 
     #[test]
+    fn native_subscriber_is_preferred_when_installed() {
+        let dir = tempfile::tempdir().unwrap();
+        let (program, args) = subscriber_command(dir.path(), &BTreeMap::new());
+        assert!(args[0].ends_with("subscriber.py"));
+        assert_eq!(program, PathBuf::from("python"));
+
+        let native = native_services_binary(dir.path());
+        std::fs::create_dir_all(native.parent().unwrap()).unwrap();
+        std::fs::write(&native, b"").unwrap();
+        let (program, args) = subscriber_command(dir.path(), &BTreeMap::new());
+        assert_eq!(program, native);
+        assert_eq!(args, vec!["herdr-subscribe".to_owned()]);
+    }
+
+    #[test]
     fn subscriber_is_not_started_without_a_socket() {
         let dir = tempfile::tempdir().unwrap();
         let log = BridgeLog::under_root(dir.path());
@@ -193,7 +229,7 @@ fn is_subscriber_running(harness_root: &Path, socket_path: &str) -> bool {
 }
 
 #[inline]
-fn subscriber_lock_path(harness_root: &Path, socket_path: &str) -> std::path::PathBuf {
+pub fn subscriber_lock_path(harness_root: &Path, socket_path: &str) -> std::path::PathBuf {
     use sha2::{Digest, Sha256};
     let identity = hex::encode(Sha256::digest(socket_path.as_bytes()));
     harness_root
