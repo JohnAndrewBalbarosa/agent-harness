@@ -88,6 +88,15 @@ function Invoke-OneTimeRustBuild {
   }
 }
 
+# Windows locks a running exe: stop the daemon, subscribers and hub started from <Destination>\bin so the new
+# binaries can be copied (otherwise an old daemon keeps running because `ensure` sees its mutex).
+function Stop-BinProcesses([string]$Bin) {
+  $prefix = [IO.Path]::GetFullPath($Bin).TrimEnd('\') + '\'
+  Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -and $_.ExecutablePath.StartsWith($prefix, [StringComparison]::OrdinalIgnoreCase) } |
+    ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+  Start-Sleep -Milliseconds 500
+}
+
 function Start-RustHub([string]$Bin) {
   $endpoint = (Get-EnvFileValue 'OBS_ENDPOINT'); if (-not $endpoint) { $endpoint = 'http://127.0.0.1:4319' }
   try { Invoke-RestMethod -Uri ($endpoint.TrimEnd('/') + '/health') -TimeoutSec 2 | Out-Null; return } catch { }
@@ -153,6 +162,7 @@ if ($WithHub) {
       $built = Join-Path $repoRoot 'target-windows'
       if (-not (Test-Path -LiteralPath (Join-Path $built 'obs-hub.exe'))) { Invoke-OneTimeRustBuild }
       New-Item -ItemType Directory -Path $bin -Force | Out-Null
+      Stop-BinProcesses $bin
       Copy-Item -Path (Join-Path $built '*.exe') -Destination $bin -Force
     }
     if (-not $SkipServices) { Start-RustHub $bin }

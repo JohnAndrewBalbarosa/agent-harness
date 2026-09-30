@@ -86,7 +86,19 @@ pub fn router_with_flush_requester(
     flush: Arc<dyn FlushRequester>,
 ) -> axum::Router {
     http_routes::routes(Arc::new(ReceiverState { context, flush }))
+        .layer(tower_http::timeout::TimeoutLayer::with_status_code(
+            axum::http::StatusCode::REQUEST_TIMEOUT,
+            REQUEST_TIMEOUT,
+        ))
+        .layer(tower::limit::ConcurrencyLimitLayer::new(
+            MAX_CONCURRENT_REQUESTS,
+        ))
 }
+
+/// A slow or stalled client cannot hold a connection (and its body buffer) forever.
+const REQUEST_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
+/// Exporters send a request every few seconds; this bounds memory under abuse.
+const MAX_CONCURRENT_REQUESTS: usize = 16;
 
 /// receiver.py:30 `port()`: `OTLP_PORT` from the merged runtime env (process wins over `.env`), else
 /// 4320. Python crashes on an invalid value; this returns an error instead.

@@ -54,6 +54,8 @@ pub fn run(context: &ServiceContext) -> anyhow::Result<()> {
         );
     })?;
     let reason = runtime.block_on(run_until_shutdown(context.clone(), log.clone()));
+    // A drain round can run for up to 120 s on the blocking pool; do not hold the mutex that long.
+    runtime.shutdown_timeout(std::time::Duration::from_secs(3));
 
     emit(
         &log,

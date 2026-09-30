@@ -27,6 +27,9 @@ serde_json.workspace = true
 sha2 = "0.10"
 # Exclusive bind of the OTLP port (SO_EXCLUSIVEADDRUSE on Windows, like the Python receiver).
 socket2 = "0.6"
+# Receiver hardening: request timeout and concurrency cap.
+tower = { version = "0.5", default-features = false, features = ["limit"] }
+tower-http = { version = "0.6", default-features = false, features = ["timeout"] }
 tokio = { workspace = true, features = ["io-util"] }
 ureq.workspace = true
 uuid.workspace = true

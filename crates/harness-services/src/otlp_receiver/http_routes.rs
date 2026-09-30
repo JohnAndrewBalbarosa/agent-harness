@@ -44,6 +44,10 @@ async fn dispatch(State(state): State<Arc<ReceiverState>>, request: Request) -> 
     if is_health {
         return json_reply(StatusCode::OK, HEALTH_BODY);
     }
+    if is_logs && !is_local_exporter(&request) {
+        report_failure("RejectedRequest: browser origin or non-loopback Host");
+        return json_reply(StatusCode::FORBIDDEN, EMPTY_BODY);
+    }
     if is_logs {
         return ingest_logs(state, request).await;
     }
@@ -62,8 +66,36 @@ async fn ingest_logs(state: Arc<ReceiverState>, request: Request) -> Response {
     json_reply(StatusCode::OK, EMPTY_BODY)
 }
 
+/// OTel exporters (Claude Code, Codex) send no `Origin` and address the loopback host. Browsers attach
+/// `Origin` to cross-site POSTs (even `text/plain` "simple" requests) and DNS rebinding shows up as a
+/// foreign `Host`; both are rejected so a web page cannot forge usage rows. (The Python receiver
+/// accepted them.)
+fn is_local_exporter(request: &Request) -> bool {
+    let has_origin = request.headers().contains_key(axum::http::header::ORIGIN);
+    let host = request
+        .headers()
+        .get(axum::http::header::HOST)
+        .and_then(|value| value.to_str().ok())
+        .unwrap_or("");
+    !has_origin && is_loopback_host(host)
+}
+
+#[inline]
+fn is_loopback_host(host: &str) -> bool {
+    let name = host.rsplit_once(':').map_or(host, |(name, _port)| name);
+    matches!(name, "127.0.0.1" | "localhost" | "[::1]" | "")
+}
+
+/// At most two bodies are ingested at once (each can hold up to 10 MiB and many SQLite writes);
+/// others wait here instead of occupying every blocking-pool thread.
+static INGEST_PERMITS: tokio::sync::Semaphore = tokio::sync::Semaphore::const_new(2);
+
 /// Runs the SQLite work off the async workers; requests a drain flush when ≥1 record was enqueued.
 async fn record_and_signal_flush(state: Arc<ReceiverState>, body: Bytes) {
+    let Ok(_permit) = INGEST_PERMITS.acquire().await else {
+        report_failure("IngestPermitError: semaphore closed");
+        return;
+    };
     let worker_state = Arc::clone(&state);
     let outcome =
         tokio::task::spawn_blocking(move || ingest_logs_body(&worker_state.context, &body)).await;
@@ -103,4 +135,36 @@ fn json_reply(status: StatusCode, body: &'static str) -> Response {
         body,
     )
         .into_response()
+}
+
+#[cfg(test)]
+mod origin_guard_tests {
+    use super::*;
+
+    fn request(headers: &[(&str, &str)]) -> Request {
+        let mut builder = axum::http::Request::post(LOGS_PATH);
+        for (name, value) in headers {
+            builder = builder.header(*name, *value);
+        }
+        builder.body(axum::body::Body::empty()).expect("request")
+    }
+
+    #[test]
+    fn exporters_on_loopback_are_accepted() {
+        assert!(is_local_exporter(&request(&[("host", "127.0.0.1:4320")])));
+        assert!(is_local_exporter(&request(&[("host", "localhost:4320")])));
+        assert!(is_local_exporter(&request(&[])));
+    }
+
+    #[test]
+    fn browsers_and_rebinding_are_rejected() {
+        assert!(!is_local_exporter(&request(&[
+            ("host", "127.0.0.1:4320"),
+            ("origin", "https://evil.example")
+        ])));
+        assert!(!is_local_exporter(&request(&[(
+            "host",
+            "evil.example:4320"
+        )])));
+    }
 }
