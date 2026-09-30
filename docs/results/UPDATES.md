@@ -49,6 +49,18 @@ Spec: `docs/superpowers/specs/2026-09-30-harness-hook-rust-design.md`. Code: `ab
 
 **Rollback.** Delete `~\.agent-harness\bin\harness-hook.exe`; the shim falls back to the Python router.
 
+**Follow-up the same day: Herdr hot path** (`9025c72`, `c22fc15`, `63e0597`). Inside Herdr the bridge was the slowest
+consumer. Three per-hook process spawns were removed or throttled:
+- `herdr pane report-agent` now runs only when the projected state or message changes, the last report failed, or
+  30 s passed (heartbeat); evidence capture still runs on every state change.
+- `subscriber.py` is no longer started on every hook just to exit on its lock: the hook probes the subscriber's
+  lock file first (verified that `LockFileEx` and `msvcrt.locking` exclude each other).
+- The bridge's own `obs-rs flush` spawn now shares the obs consumer's throttle (one flusher per spool per 3 s).
+
+Live samples right after these installs were too few and noisy (another session's Docker build, first-run
+Defender scans) to quantify the gain; steady-state Rust before them was `tool.completed` p50 132 ms (n=129)
+versus 535 ms for the Python router. Re-measure when the machine is idle.
+
 ## 2026-09-30 - Legacy hub removed; Docker only for the first install
 
 **Change.**
