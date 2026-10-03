@@ -6,7 +6,10 @@
 
 use serde_json::{json, Map, Value};
 
-use super::{env_or, field, native_event_name, session_context_response, shared_mapping, Adapter};
+use super::{
+    additional_context_response, env_or, field, native_event_name, session_context_response,
+    shared_mapping, Adapter,
+};
 use crate::consumer::ConsumerResult;
 use crate::events::{is_python_truthy, make_event, python_str, Event};
 use crate::runtime_env::EnvMap;
@@ -42,10 +45,10 @@ impl Adapter for ClaudeAdapter {
     }
 
     fn respond(&self, event: &Event, results: &[ConsumerResult]) -> String {
-        if event.event == "session.start" {
-            session_context_response(results)
-        } else {
-            String::new()
+        match event.event.as_str() {
+            "session.start" => session_context_response(results),
+            "prompt.submit" | "tool.requested" => additional_context_response(event, results),
+            _ => String::new(),
         }
     }
 

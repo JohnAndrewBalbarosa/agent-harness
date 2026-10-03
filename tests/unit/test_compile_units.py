@@ -101,6 +101,17 @@ class MergeCodexHooksTests(unittest.TestCase):
         existing = {"hooks": {"SubagentStop": [{"hooks": [{"type": "command", "command": "x\\global-hook-router.cmd"}]}]}}
         self.assertEqual(patch.merge_codex_hooks(existing, {"hooks": {}})["hooks"], {})
 
+    def test_context_limits_apply_only_to_model_visible_harness_hooks(self):
+        generated = {"hooks": {
+            "SessionStart": [{"hooks": [{"command": "C:/harness-hook.cmd codex", "type": "command"}]}],
+            "PostToolUse": [{"hooks": [{"command": "C:/harness-hook.cmd codex", "type": "command"}]}],
+        }}
+        limited = patch.set_codex_context_limits(generated)
+        session_hook = limited["hooks"]["SessionStart"][0]["hooks"][0]
+        post_hook = limited["hooks"]["PostToolUse"][0]["hooks"][0]
+        self.assertEqual(session_hook["additionalContextLimit"], 2500)
+        self.assertNotIn("additionalContextLimit", post_hook)
+
 
 class ApplyGuardTests(unittest.TestCase):
     def test_file_changed_after_planning_aborts_without_writing(self):

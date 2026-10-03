@@ -79,6 +79,7 @@ pub fn shared_mapping(
         "SessionStart" => ("session.start", json!({"source": field(payload, "source")})),
         "SessionEnd" => ("session.end", json!({"reason": field(payload, "reason")})),
         "UserPromptSubmit" => ("prompt.submit", json!({"prompt": field(payload, "prompt")})),
+        "PreToolUse" => ("tool.requested", tool_data(payload)),
         "PostToolUse" => ("tool.completed", tool_data(payload)),
         "Stop" => ("turn.stop", stop_data(payload)),
         "SubagentStart" => ("subagent.start", subagent_data(payload)),
@@ -109,6 +110,21 @@ pub fn session_context_response(results: &[ConsumerResult]) -> String {
     }
     let envelope = json!({"hookSpecificOutput": {"hookEventName": "SessionStart", "additionalContext": context}});
     to_python_json(&envelope, JsonLayout::Spaced, false)
+}
+
+/// Model-visible context for prompt and pre-tool hooks.
+pub fn additional_context_response(event: &Event, results: &[ConsumerResult]) -> String {
+    let context = successful_output(results, "markdown-context");
+    if context.is_empty() {
+        return String::new();
+    }
+    serde_json::to_string(&json!({
+        "hookSpecificOutput": {
+            "hookEventName": event.native_event,
+            "additionalContext": context,
+        }
+    }))
+    .unwrap_or_default()
 }
 
 /// `stdout[:MAX_CONSUMER_STDOUT]` then `.decode("utf-8", errors="replace")`.

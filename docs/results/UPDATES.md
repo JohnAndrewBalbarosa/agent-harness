@@ -3,6 +3,19 @@
 Newest first. Each entry states what changed, how it was verified, and what was measured. Results from before the
 Rust migration are in [`LEGACY.md`](LEGACY.md).
 
+## 2026-10-03 - Selective workspace Markdown context
+
+**Change.** The Rust hook builds a versioned, ignore-aware Markdown folder tree at session start, caches it by
+canonical workspace root, and injects only prompt- or tool-relevant documents plus their ancestors. Per-session
+SHA-256 state prevents repeated content while allowing changed files to reload. `PreToolUse` is now a common
+`tool.requested` event for Codex, Claude, and future adapters; `PostToolUse` reconciles tree metadata.
+
+**Limits.** Model-visible output defaults to 8,000 characters per event and 4,000 per file. Oversized files use a
+bounded head/tail view, and deferred paths remain eligible for the next matching hook.
+
+**Verification.** Docker Clippy with warnings denied, full Rust workspace tests, 272 Python tests, Windows GNU
+release build, and native-hook smoke tests for selective loading and per-path deduplication.
+
 ## 2026-09-30 - Hook path rewritten in Rust (sub-project #2)
 
 **Change.** `harness-hook.exe` (crates/harness-hook) replaces the Python router and its per-consumer Python

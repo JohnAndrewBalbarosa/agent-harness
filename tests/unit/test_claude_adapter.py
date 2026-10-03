@@ -21,7 +21,8 @@ class NormalizeTests(unittest.TestCase):
 
     def test_every_fixture_maps_to_its_common_event(self):
         expected = {
-            "SessionStart": "session.start", "UserPromptSubmit": "prompt.submit", "PostToolUse": "tool.completed",
+            "SessionStart": "session.start", "UserPromptSubmit": "prompt.submit",
+            "PreToolUse": "tool.requested", "PostToolUse": "tool.completed",
             "Stop": "turn.stop", "SubagentStart": "subagent.start", "SubagentStop": "subagent.stop",
             "SessionEnd": "session.end", "Notification": "attention.needed", "Notification.idle": "attention.needed",
         }

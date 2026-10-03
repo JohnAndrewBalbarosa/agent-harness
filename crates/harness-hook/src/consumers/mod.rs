@@ -3,6 +3,7 @@
 pub mod context;
 pub mod context_guard;
 pub mod herdr_bridge;
+pub mod markdown_context;
 pub mod notify;
 pub mod obs;
 pub mod orb;
@@ -20,6 +21,7 @@ pub fn all_consumers() -> Vec<Box<dyn Consumer>> {
         Box::new(usage_fallback::UsageFallbackConsumer),
         Box::new(context_guard::ContextGuardConsumer),
         Box::new(context::ContextConsumer),
+        Box::new(markdown_context::MarkdownContextConsumer),
         Box::new(services::ServicesConsumer),
         Box::new(orb::OrbConsumer),
         Box::new(herdr_bridge::HerdrBridgeConsumer),

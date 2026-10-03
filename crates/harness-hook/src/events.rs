@@ -4,10 +4,11 @@ use obs_cli::python_compat::json_text::{to_python_json, JsonLayout};
 use serde_json::{json, Map, Value};
 
 pub const SCHEMA: &str = "agent-harness.event/v1";
-pub const EVENT_TYPES: [&str; 8] = [
+pub const EVENT_TYPES: [&str; 9] = [
     "session.start",
     "session.end",
     "prompt.submit",
+    "tool.requested",
     "tool.completed",
     "turn.stop",
     "attention.needed",

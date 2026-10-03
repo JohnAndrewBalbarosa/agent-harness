@@ -5,6 +5,8 @@ import copy
 from typing import Mapping
 
 HARNESS_COMMAND_MARKERS = ("harness-hook", "global-hook-router", "rtk hook ")
+MODEL_CONTEXT_EVENTS = ("SessionStart", "UserPromptSubmit", "PreToolUse")
+MODEL_CONTEXT_LIMIT = 2500
 
 
 def merge_env(settings: Mapping, managed: Mapping[str, str], previously_managed: set[str]) -> dict:
@@ -42,3 +44,14 @@ def merge_codex_hooks(existing: Mapping, generated: Mapping) -> dict:
         if entries:
             merged[event] = entries
     return {**copy.deepcopy(dict(existing)), "hooks": merged}
+
+
+def set_codex_context_limits(generated: Mapping) -> dict:
+    """Bound model-visible output for harness hooks that may return additionalContext."""
+    updated = copy.deepcopy(dict(generated))
+    for event in MODEL_CONTEXT_EVENTS:
+        for group in updated.get("hooks", {}).get(event, []):
+            for hook in group.get("hooks", []):
+                if "harness-hook" in str(hook.get("command", "")):
+                    hook["additionalContextLimit"] = MODEL_CONTEXT_LIMIT
+    return updated

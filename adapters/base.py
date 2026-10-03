@@ -70,6 +70,15 @@ def session_context_response(results: Sequence[ConsumerResult]) -> str:
     return successful_output(results, "herdr-bridge")
 
 
+def additional_context_response(event: Event, results: Sequence[ConsumerResult]) -> str:
+    """Prompt/pre-tool context emitted by the shared Markdown consumer."""
+    context = successful_output(results, "markdown-context")
+    if not context:
+        return ""
+    return json.dumps({"hookSpecificOutput": {"hookEventName": event.native_event,
+                                               "additionalContext": context}}, ensure_ascii=False)
+
+
 def count(value: Any) -> int:
     """Non-negative token count from an int or numeric string (OTLP JSON encodes int64 as strings)."""
     try:
@@ -95,6 +104,7 @@ SHARED_MAPPING: Mapping[str, tuple[str, Extractor]] = MappingProxyType({
     "SessionStart": ("session.start", lambda p: {"source": p.get("source")}),
     "SessionEnd": ("session.end", lambda p: {"reason": p.get("reason")}),
     "UserPromptSubmit": ("prompt.submit", lambda p: {"prompt": p.get("prompt")}),
+    "PreToolUse": ("tool.requested", tool_data),
     "PostToolUse": ("tool.completed", tool_data),
     "Stop": ("turn.stop", lambda p: {"last_message": p.get("last_assistant_message"),
                                      "stop_hook_active": bool(p.get("stop_hook_active"))}),

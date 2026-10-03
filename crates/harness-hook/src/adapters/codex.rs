@@ -8,7 +8,10 @@
 
 use serde_json::{json, Map, Value};
 
-use super::{field, native_event_name, session_context_response, shared_mapping, Adapter};
+use super::{
+    additional_context_response, field, native_event_name, session_context_response,
+    shared_mapping, Adapter,
+};
 use crate::consumer::ConsumerResult;
 use crate::events::{make_event, python_str, Event};
 use crate::runtime_env::EnvMap;
@@ -57,6 +60,7 @@ impl Adapter for CodexAdapter {
     fn respond(&self, event: &Event, results: &[ConsumerResult]) -> String {
         match event.event.as_str() {
             "session.start" => session_context_response(results),
+            "prompt.submit" | "tool.requested" => additional_context_response(event, results),
             "turn.stop" => CONTINUE.to_owned(),
             _ => String::new(),
         }

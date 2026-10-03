@@ -62,6 +62,7 @@ fn claude_every_fixture_maps_to_its_common_event() {
     let expected = [
         ("SessionStart", "session.start"),
         ("UserPromptSubmit", "prompt.submit"),
+        ("PreToolUse", "tool.requested"),
         ("PostToolUse", "tool.completed"),
         ("Stop", "turn.stop"),
         ("SubagentStart", "subagent.start"),
@@ -157,6 +158,18 @@ fn claude_other_events_print_nothing() {
     }
 }
 
+#[test]
+fn claude_pre_tool_context_envelope() {
+    let out = adapter("claude").respond(
+        &claude("PreToolUse"),
+        &[ConsumerResult::succeeded("markdown-context", "Auth rules")],
+    );
+    assert_eq!(
+        serde_json::from_str::<Value>(&out).unwrap(),
+        json!({"hookSpecificOutput": {"hookEventName": "PreToolUse", "additionalContext": "Auth rules"}})
+    );
+}
+
 // ---- Codex --------------------------------------------------------------------------------------------
 
 #[test]
@@ -164,6 +177,7 @@ fn codex_every_fixture_maps_to_its_common_event() {
     let expected = [
         ("SessionStart", "session.start"),
         ("UserPromptSubmit", "prompt.submit"),
+        ("PreToolUse", "tool.requested"),
         ("PostToolUse", "tool.completed"),
         ("Stop", "turn.stop"),
         ("SubagentStart", "subagent.start"),

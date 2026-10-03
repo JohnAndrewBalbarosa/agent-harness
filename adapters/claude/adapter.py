@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Any, Mapping, Sequence
 
-from adapters.base import SHARED_MAPPING, ConsumerResult, session_context_response
+from adapters.base import SHARED_MAPPING, ConsumerResult, additional_context_response, session_context_response
 from core.events import Event, make_event
 
 ATTENTION_KINDS = {"permission_prompt": "permission", "idle_prompt": "idle"}
@@ -30,7 +30,11 @@ class ClaudeAdapter:
         return make_event(common, self.name, instance, payload, native, extract(payload))
 
     def respond(self, event: Event, results: Sequence[ConsumerResult]) -> str:
-        return session_context_response(results) if event.event == "session.start" else ""
+        if event.event == "session.start":
+            return session_context_response(results)
+        if event.event in {"prompt.submit", "tool.requested"}:
+            return additional_context_response(event, results)
+        return ""
 
     def safe_default(self, native_event: str | None) -> str:
         return ""

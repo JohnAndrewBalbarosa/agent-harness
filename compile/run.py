@@ -19,7 +19,7 @@ from pathlib import Path
 
 from adapters.claude import patches as claude_patches
 from adapters.codex import patches as codex_patches
-from compile.patch import merge_block, merge_codex_hooks, merge_env
+from compile.patch import merge_block, merge_codex_hooks, merge_env, set_codex_context_limits
 from compile.render import SKILL_NAME, hooks_source, rulesync_config, skill
 from core.config import Config, Instance, load
 
@@ -154,7 +154,8 @@ def _plan_codex(sim: Path, project: Path, cfg: Config, instances: list[Instance]
     stage = sim / "codex-stage"
     (stage / ".codex").mkdir(parents=True)
     _rulesync(project, stage, "codexcli", cfg.rulesync_version)
-    generated = json.loads((stage / ".codex" / "hooks.json").read_text(encoding="utf-8"))
+    generated = set_codex_context_limits(
+        json.loads((stage / ".codex" / "hooks.json").read_text(encoding="utf-8")))
     policy = cfg.harness_home / "policy" / "AGENTS.md"
     actions: list[Write | Link] = []
     for instance in instances:

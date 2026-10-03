@@ -13,7 +13,7 @@ from typing import Any, Mapping
 
 SCHEMA = "agent-harness.event/v1"
 EVENT_TYPES = frozenset({
-    "session.start", "session.end", "prompt.submit", "tool.completed",
+    "session.start", "session.end", "prompt.submit", "tool.requested", "tool.completed",
     "turn.stop", "attention.needed", "subagent.start", "subagent.stop",
 })
 NATIVE_PAYLOAD_LIMIT_BYTES = 8 * 1024
