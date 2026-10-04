@@ -14,6 +14,9 @@ const UNREADABLE_STDIN: &[u8] = &[0xff];
 
 fn main() -> ExitCode {
     let arguments: Vec<String> = std::env::args().skip(1).collect();
+    if arguments.first().map(String::as_str) == Some("markdown") {
+        return harness_hook::consumers::markdown_context::cli::run(&arguments[1..]);
+    }
     let Some(agent) = arguments.first() else {
         return ExitCode::SUCCESS;
     };

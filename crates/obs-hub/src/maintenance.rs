@@ -19,6 +19,7 @@ pub struct MaintenanceReport {
     pub expired_payloads: usize,
     pub expired_events: usize,
     pub expired_rollups: usize,
+    pub expired_markdown_batches: usize,
 }
 
 /// Runs maintenance and logs the outcome instead of failing the caller (hub keeps serving).
@@ -30,6 +31,7 @@ pub async fn run_logged(database: &Database) {
             expired_payloads = report.expired_payloads,
             expired_events = report.expired_events,
             expired_rollups = report.expired_rollups,
+            expired_markdown_batches = report.expired_markdown_batches,
             "storage maintenance completed"
         ),
         Err(error) => tracing::error!(
@@ -70,10 +72,26 @@ fn apply_retention(connection: &mut Connection) -> Result<MaintenanceReport> {
             "DELETE FROM daily_rollups WHERE day < ?1",
             params![date_days_before_today(ROLLUP_RETENTION_DAYS)],
         )?,
+        expired_markdown_batches: expire_markdown_metadata(&transaction)?,
     };
 
     transaction.commit()?;
     Ok(report)
+}
+
+fn expire_markdown_metadata(connection: &Connection) -> Result<usize> {
+    let deleted = connection.execute(
+        "DELETE FROM markdown_context_batches WHERE batch_id IN
+         (SELECT batch_id FROM markdown_context_batches WHERE recorded_at < ?1 ORDER BY recorded_at LIMIT 10000)",
+        params![days_before_now(EVENT_RETENTION_DAYS)],
+    )?;
+    connection.execute("DELETE FROM markdown_document_versions WHERE version_id IN
+        (SELECT v.version_id FROM markdown_document_versions v WHERE NOT EXISTS
+         (SELECT 1 FROM markdown_context_observations o WHERE o.version_id=v.version_id) LIMIT 10000)", [])?;
+    connection.execute("DELETE FROM markdown_documents WHERE document_id IN
+        (SELECT d.document_id FROM markdown_documents d WHERE NOT EXISTS
+         (SELECT 1 FROM markdown_document_versions v WHERE v.document_id=d.document_id) LIMIT 10000)", [])?;
+    Ok(deleted)
 }
 
 fn refresh_recent_rollups(connection: &Connection, today_start: &str) -> Result<usize> {

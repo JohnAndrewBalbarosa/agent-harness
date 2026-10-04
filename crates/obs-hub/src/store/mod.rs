@@ -9,6 +9,7 @@ use anyhow::{Context, Result};
 use rusqlite::Connection;
 
 const SCHEMA_SQL: &str = include_str!("schema.sql");
+const MARKDOWN_SCHEMA_SQL: &str = include_str!("markdown_context.sql");
 const CACHE_SIZE_KIB: i64 = 2048;
 const BUSY_TIMEOUT: Duration = Duration::from_millis(5000);
 
@@ -34,6 +35,7 @@ impl Database {
         let connection = Connection::open_in_memory()?;
         prepare_connection(&connection)?;
         connection.execute_batch(SCHEMA_SQL)?;
+        connection.execute_batch(MARKDOWN_SCHEMA_SQL)?;
         let shared = Arc::new(Mutex::new(connection));
 
         Ok(Self {
@@ -70,6 +72,9 @@ pub fn open_database(path: &Path) -> Result<Connection> {
     connection
         .execute_batch(SCHEMA_SQL)
         .context("failed to apply hub schema")?;
+    connection
+        .execute_batch(MARKDOWN_SCHEMA_SQL)
+        .context("failed to apply additive Markdown metadata migration")?;
 
     Ok(connection)
 }

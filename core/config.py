@@ -128,7 +128,8 @@ def runtime_env(env_file: Path, environ: Mapping[str, str]) -> dict[str, str]:
         file_values = parse_env_text(env_file.read_text(encoding="utf-8"))
     except OSError:
         file_values = {}
-    merged = {**{k: expand(v, environ) for k, v in file_values.items() if k in RUNTIME_KEYS and v}, **environ}
+    merged = {**{k: expand(v, environ) for k, v in file_values.items()
+                 if (k in RUNTIME_KEYS or k.startswith("AH_MARKDOWN_")) and v}, **environ}
     if merged.get("HERDR_BIN") and not merged.get("HERDR_BIN_PATH"):
         merged["HERDR_BIN_PATH"] = merged["HERDR_BIN"]
     return merged

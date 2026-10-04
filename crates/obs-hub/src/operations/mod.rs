@@ -12,6 +12,7 @@ mod error_tracking;
 mod events;
 mod executions;
 mod herdr_runtime;
+mod markdown_context;
 mod project_context;
 mod projects;
 mod prompts;
@@ -74,6 +75,7 @@ fn apply_operation(connection: &Connection, operation: &Operation) -> Result<()>
         "herdr-event.record" => herdr_runtime::record_runtime_event(connection, operation),
         "turn-usage.record" => usage::record_turn_usage(connection, operation),
         "tool-use.record" => usage::record_tool_use(connection, operation),
+        "markdown-context.record" => markdown_context::record(connection, operation),
         "handoff.record" => project_context::record_handoff(connection, operation),
         "handoff.promote" => project_context::promote_handoff(connection, operation),
         "pane-evidence.record" => herdr_runtime::record_pane_evidence(connection, operation),

@@ -25,6 +25,13 @@ const fn view(name: &'static str, select_template: &'static str) -> ProjectView 
     }
 }
 
+pub const MARKDOWN_PROJECT_VIEWS: [ProjectView; 4] = [
+    view("markdown_documents", "SELECT * FROM main.markdown_documents WHERE project_id={project}"),
+    view("markdown_document_versions", "SELECT v.* FROM main.markdown_document_versions v JOIN main.markdown_documents d USING(document_id) WHERE d.project_id={project}"),
+    view("markdown_context_batches", "SELECT * FROM main.markdown_context_batches WHERE project_id={project}"),
+    view("markdown_context_observations", "SELECT o.* FROM main.markdown_context_observations o JOIN main.markdown_context_batches b USING(batch_id) WHERE b.project_id={project}"),
+];
+
 pub const PROJECT_VIEWS: [ProjectView; 33] = [
     view("project", "SELECT * FROM main.projects WHERE project_id={project}"),
     view("project_aliases", "SELECT * FROM main.project_aliases WHERE project_id={project}"),
@@ -74,6 +81,7 @@ pub fn project_view_statements(project_id: &str) -> Vec<(&'static str, String)> 
 
     PROJECT_VIEWS
         .iter()
+        .chain(MARKDOWN_PROJECT_VIEWS.iter())
         .map(|definition| {
             let select = definition
                 .select_template
@@ -93,8 +101,14 @@ pub fn install_project_views(
     project_id: &str,
 ) -> CliResult<Vec<UnavailableView>> {
     let mut unavailable = Vec::new();
+    let markdown_available = has_markdown_tables(conn)?;
 
     for (name, statement) in project_view_statements(project_id) {
+        // Older databases contain no Markdown tables to expose. A partial migration
+        // installs every Markdown view so missing joins still fail closed.
+        if name.starts_with("markdown_") && !markdown_available {
+            continue;
+        }
         conn.execute_batch(&statement)?;
         if let Err(error) = conn.prepare(&format!("SELECT * FROM temp.{name} LIMIT 0")) {
             unavailable.push(UnavailableView {
@@ -104,6 +118,15 @@ pub fn install_project_views(
         }
     }
     Ok(unavailable)
+}
+
+fn has_markdown_tables(conn: &Connection) -> CliResult<bool> {
+    Ok(conn.query_row(
+        "SELECT EXISTS(SELECT 1 FROM main.sqlite_master WHERE type='table' AND name IN
+         ('markdown_documents','markdown_document_versions','markdown_context_batches','markdown_context_observations'))",
+        [],
+        |row| row.get(0),
+    )?)
 }
 
 #[inline]
@@ -174,5 +197,27 @@ mod tests {
     #[test]
     fn literal_escapes_quotes() {
         assert_eq!(sql_text_literal("a'b"), "'a''b'");
+    }
+
+    #[test]
+    fn partial_markdown_schema_installs_scoped_views_and_keeps_missing_joins_closed() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(&format!(
+            "CREATE TABLE markdown_documents(project_id TEXT, relative_path TEXT);
+             INSERT INTO markdown_documents VALUES('{PROJECT}', 'docs/a.md'), ('other', 'docs/b.md');"
+        )).unwrap();
+        let unavailable = install_project_views(&conn, PROJECT).unwrap();
+        assert!(!unavailable
+            .iter()
+            .any(|view| view.name == "markdown_documents"));
+        assert!(unavailable
+            .iter()
+            .any(|view| view.name == "markdown_document_versions"));
+        let count: i64 = conn
+            .query_row("SELECT count(*) FROM markdown_documents", [], |row| {
+                row.get(0)
+            })
+            .unwrap();
+        assert_eq!(count, 1);
     }
 }

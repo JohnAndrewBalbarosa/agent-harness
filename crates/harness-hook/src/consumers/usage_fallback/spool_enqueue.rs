@@ -69,7 +69,17 @@ pub fn enqueue_usage(
     record: &Value,
     env: &BTreeMap<String, String>,
 ) -> anyhow::Result<()> {
-    let operation = build_operation(OPERATION_KIND, record);
+    enqueue_operation(spool, OPERATION_KIND, record, env)
+}
+
+/// Shared bounded spool path for metadata-only consumers; no synchronous network call.
+pub fn enqueue_operation(
+    spool: &Path,
+    kind: &str,
+    record: &Value,
+    env: &BTreeMap<String, String>,
+) -> anyhow::Result<()> {
+    let operation = build_operation(kind, record);
     let operation_id = operation
         .get("operationId")
         .and_then(Value::as_str)

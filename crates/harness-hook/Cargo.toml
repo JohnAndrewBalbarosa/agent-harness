@@ -25,6 +25,7 @@ serde_json.workspace = true
 sha2 = "0.10"
 hmac = "0.12"
 ignore = "0.4.25"
+regex = "1"
 ureq.workspace = true
 uuid.workspace = true
 

@@ -14,6 +14,8 @@ const PRUNED_DIRECTORIES: &[&str] = &[
     "dist",
     "build",
     "__pycache__",
+    ".backups",
+    ".cache",
 ];
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -53,7 +55,9 @@ impl WorkspaceMarkdownTree {
             .filter_entry(|entry| {
                 entry.depth() == 0
                     || !entry.file_type().is_some_and(|kind| kind.is_dir())
-                    || !is_pruned_directory(&entry.file_name().to_string_lossy())
+                    || (!is_pruned_directory(&entry.file_name().to_string_lossy())
+                        && !entry.path().join(".git").exists()
+                        && !entry.path().join("observability.project.toml").is_file())
             });
 
         for result in builder.build() {

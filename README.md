@@ -16,6 +16,10 @@ Architecture: [docs/architecture.md](docs/architecture.md) · Design spec:
 
 ## Safety boundary
 
+Markdown discovery supplies project-relative filenames first; agents explicitly select contents through the packaged Rust
+`harness markdown index|read` commands. Repository regex allowlists, coverage tracking, change-driven refresh and normalized
+metadata are documented in [Markdown discovery and explicit reads](docs/markdown-context.md).
+
 The repository contains no credentials, sessions, prompts, histories, logs, database rows or personal policy.
 Machine specifics live in `%USERPROFILE%\.agent-harness\.env`. Installing never overwrites owner-owned files
 (`.env`, `policy\AGENTS.md`, `var\`); `harness compile` backs up every agent file before changing it

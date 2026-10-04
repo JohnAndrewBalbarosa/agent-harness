@@ -188,7 +188,7 @@ fn is_name_character(character: char, is_first: bool) -> bool {
 
 #[inline]
 fn is_runtime_key(key: &str) -> bool {
-    RUNTIME_KEYS.contains(&key)
+    RUNTIME_KEYS.contains(&key) || key.starts_with("AH_MARKDOWN_")
 }
 
 fn export_herdr_bin_path(mut merged: EnvMap) -> EnvMap {

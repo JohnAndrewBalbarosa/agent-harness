@@ -32,11 +32,11 @@ fn table(rows: &[(u32, &str, u32)]) -> ProcessTable {
 #[test]
 fn profile_mapping_matches_python() {
     assert_eq!(
-        profile_from_path(r"C:\Users\u\.codex-cy\bin\codex.exe"),
+        profile_from_path(r"C:\Users\x\.codex-cy\bin\codex.exe"),
         "cy"
     );
     assert_eq!(
-        profile_from_path(r"C:\Users\u\.CODEX-FEU\bin\codex.exe"),
+        profile_from_path(r"C:\Users\x\.CODEX-FEU\bin\codex.exe"),
         "feu"
     );
     assert_eq!(
@@ -132,7 +132,7 @@ fn ancestry_finds_codex_and_maps_profile() {
     let ancestry = walk_ancestry(40, &processes, |pid| {
         lookups.set(lookups.get() + 1);
         assert_eq!(pid, 20);
-        r"C:\Users\u\.codex-feu\bin\codex.exe".to_owned()
+        r"C:\Users\x\.codex-feu\bin\codex.exe".to_owned()
     });
     assert_eq!(ancestry.codex_pid, Some(20));
     assert_eq!(ancestry.profile, "feu");
