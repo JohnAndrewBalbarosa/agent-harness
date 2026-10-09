@@ -130,7 +130,14 @@ fn completion_operations(
         severity: if failed { 4 } else { 1 },
         outcome: if failed { 3 } else { 1 },
         summary: format!("Tool completed: {}", observation.tool),
-        attributes: json!({"tool": observation.tool, "origin": analytics_field(&analytics, "origin"), "durationMs": analytics_field(&analytics, "durationMs")}),
+        attributes: json!({
+            "tool": observation.tool,
+            "origin": analytics_field(&analytics, "origin"),
+            "durationMs": analytics_field(&analytics, "durationMs"),
+            "outcomeStatus": analytics_field(&analytics, "outcomeStatus"),
+            "cacheStatus": analytics_field(&analytics, "cacheStatus"),
+            "discoveryMode": analytics_field(&analytics, "discoveryMode"),
+        }),
     };
     let mut event = event_emit_data(&uuid7_text(), slot, sequence_no, signal);
     event.insert(
@@ -148,18 +155,15 @@ fn completion_operations(
 
 /// hook.py `tool_analytics(value, tool, observed_at)`: bounded, content-free tool facts.
 pub fn tool_analytics(payload: &Payload, tool: &str, observed_at: &str) -> Map<String, Value> {
-    let response = match python_or(payload, &["tool_response", "toolResponse"]) {
-        Value::Object(map) => map,
-        _ => Map::new(),
-    };
+    let response = response_fields(python_or(payload, &["tool_response", "toolResponse"]));
     let tool_id = text_or(payload, &["tool_use_id", "toolUseId"], "", TOOL_ID_LIMIT);
     let parent_id = text_or(payload, &["parent_tool_use_id"], "", TOOL_ID_LIMIT);
     let origin = tool_origin(tool);
-    let cache_hit = if origin == "harness" {
-        response.get("cache_hit").and_then(Value::as_bool)
-    } else {
-        None
-    };
+    let failed = failure_flag(&response);
+    let cache_hit = response
+        .get("cache_hit")
+        .or_else(|| response.get("cacheHit"))
+        .and_then(Value::as_bool);
 
     let analytics = json!({
         "toolUseId": non_empty(tool_id),
@@ -169,13 +173,38 @@ pub fn tool_analytics(payload: &Payload, tool: &str, observed_at: &str) -> Map<S
         "startedAt": started_at(payload, &response),
         "completedAt": observed_at,
         "durationMs": duration_ms(payload, &response),
-        "failed": failure_flag(&response),
+        "failed": failed,
+        "outcomeStatus": match failed { Some(true) => "failure", Some(false) => "success", None => "unknown" },
         "cacheHit": cache_hit,
         "cacheStatus": match cache_hit { Some(true) => "hit", Some(false) => "miss", None => "unknown" },
+        "discoveryMode": discovery_mode(tool),
     });
     match analytics {
         Value::Object(map) => map,
         _ => Map::new(),
+    }
+}
+
+/// Structured objects are used directly. A string is decoded only when the whole value is JSON.
+/// Ordinary prose remains opaque so words such as "error" cannot create false failures.
+fn response_fields(response: Value) -> Map<String, Value> {
+    match response {
+        Value::Object(map) => map,
+        Value::String(text) => serde_json::from_str::<Value>(&text)
+            .ok()
+            .and_then(|value| value.as_object().cloned())
+            .unwrap_or_default(),
+        _ => Map::new(),
+    }
+}
+
+#[inline]
+fn discovery_mode(tool: &str) -> &'static str {
+    let normalized = tool.to_lowercase().replace(['.', '_'], "");
+    if normalized == "toolsearch" || normalized == "functionstoolsearch" {
+        "dynamic"
+    } else {
+        "direct"
     }
 }
 
@@ -298,7 +327,9 @@ mod tests {
         assert_eq!(record["origin"], "mcp");
         assert_eq!(record["durationMs"], 17);
         assert_eq!(record["failed"], true);
+        assert_eq!(record["outcomeStatus"], "failure");
         assert_eq!(record["cacheStatus"], "unknown");
+        assert_eq!(record["discoveryMode"], "direct");
         assert!(!Value::Object(record).to_string().contains("private"));
 
         let cached = tool_analytics(
@@ -310,6 +341,22 @@ mod tests {
             (cached["cacheHit"].clone(), cached["cacheStatus"].clone()),
             (json!(true), json!("hit"))
         );
+
+        let decoded = tool_analytics(
+            &payload(json!({"tool_response": "{\"exit_code\":2,\"cacheHit\":false}"})),
+            "functions.tool_search",
+            "2026-09-29T00:00:00Z",
+        );
+        assert_eq!(decoded["outcomeStatus"], "failure");
+        assert_eq!(decoded["cacheStatus"], "miss");
+        assert_eq!(decoded["discoveryMode"], "dynamic");
+
+        let opaque = tool_analytics(
+            &payload(json!({"tool_response": "error appears in ordinary output"})),
+            "Bash",
+            "2026-09-29T00:00:00Z",
+        );
+        assert_eq!(opaque["outcomeStatus"], "unknown");
     }
 
     #[test]

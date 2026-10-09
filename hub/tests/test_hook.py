@@ -180,9 +180,19 @@ class ToolAnalyticsTests(unittest.TestCase):
         self.assertEqual((record["toolUseId"],record["origin"],record["durationMs"],record["failed"]),
                          ("tool-1","mcp",17,True))
         self.assertEqual(record["cacheStatus"], "unknown")
+        self.assertEqual((record["outcomeStatus"],record["discoveryMode"]), ("failure","direct"))
         self.assertNotIn("private", str(record))
         cached = hook.tool_analytics({"tool_response":{"cache_hit":True}}, "harness.cache", "2026-09-29T00:00:00Z")
         self.assertEqual((cached["cacheHit"],cached["cacheStatus"]), (True,"hit"))
+
+    def test_json_string_signals_are_decoded_but_prose_is_unknown(self):
+        decoded = hook.tool_analytics({"tool_response":'{"exit_code":2,"cacheHit":false}'},
+                                      "functions.tool_search", "2026-09-29T00:00:00Z")
+        self.assertEqual((decoded["outcomeStatus"],decoded["cacheStatus"],decoded["discoveryMode"]),
+                         ("failure","miss","dynamic"))
+        opaque = hook.tool_analytics({"tool_response":"error appears in ordinary output"},
+                                     "Bash", "2026-09-29T00:00:00Z")
+        self.assertEqual(opaque["outcomeStatus"], "unknown")
 
 
 if __name__ == "__main__":

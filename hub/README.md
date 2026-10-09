@@ -72,7 +72,7 @@ Restart Codex after installing hooks.
   --expected-head HEAD_FROM_CHECK --confirm-all-local-related
 ```
 
-`analytics` returns at most 100 prompt usage rows and 100 tool groups for a 1–30 day window. Prompt totals prefer exact transcript hook records over OTel records for the same prompt, so the two sources are not added together. A native session and turn ID must match the recorded prompt link; otherwise usage remains unlinked. Tool `duration_ms`, failure, and cache status remain unknown when the hook has no explicit signal. Only explicit cache signals from harness-owned tools count as hits or misses; model cached input tokens are separate.
+`analytics` returns at most 100 prompt usage rows and 100 tool groups for a 1–30 day window. Prompt totals prefer exact transcript hook records over OTel records for the same prompt, so the two sources are not added together. A native session and turn ID must match the recorded prompt link; otherwise usage remains unlinked. Tool groups report `successes`, `failures`, and `outcome_unknown` separately; an unknown result is never presented as success. `dynamic_discovery_calls` counts `ToolSearch` calls independently from cache status. Cache hits and misses require an explicit structured signal, while model cached input tokens are a separate metric. These execution metrics do not prove that a result was useful; usefulness requires task-level correctness, completeness, and evidence evaluation.
 
 Add this repository directory to `PATH` if you want `obs.cmd` available from any
 project.

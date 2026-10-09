@@ -216,6 +216,12 @@ async fn execution_duration_and_usage_linking_follow_postgres_semantics() {
         .get(&format!("/v1/projects/{PROJECT}/analytics?days=3650"))
         .await;
     assert_eq!(analytics["days"], 30);
+    let bash = &analytics["tools"][0];
+    assert_eq!(bash["calls"], "1");
+    assert_eq!(bash["successes"], "0");
+    assert_eq!(bash["failures"], "1");
+    assert_eq!(bash["outcome_unknown"], "0");
+    assert_eq!(bash["dynamic_discovery_calls"], "0");
 
     let (_, prompt) = hub.get(&format!("/v1/prompts/{PROMPT}")).await;
     let execution = &prompt["executions"][0];

@@ -166,7 +166,10 @@ const TOOL_USAGE_COLUMNS: Columns = &[
     ("tool_name", Wire::Text),
     ("origin", Wire::Text),
     ("calls", Wire::BigIntText),
+    ("successes", Wire::BigIntText),
     ("failures", Wire::BigIntText),
+    ("outcome_unknown", Wire::BigIntText),
+    ("dynamic_discovery_calls", Wire::BigIntText),
     ("cache_hits", Wire::BigIntText),
     ("cache_misses", Wire::BigIntText),
     ("cache_unknown", Wire::BigIntText),
@@ -189,7 +192,11 @@ const PROMPT_USAGE_SQL: &str = "
     FROM ranked WHERE preference=1 ORDER BY prompt_id DESC LIMIT 100";
 
 const TOOL_USAGE_SQL: &str = "
-    SELECT tool_name,origin,COUNT(*) calls,COUNT(*) FILTER (WHERE failed) failures,
+    SELECT tool_name,origin,COUNT(*) calls,
+      COUNT(*) FILTER (WHERE failed=0) successes,
+      COUNT(*) FILTER (WHERE failed=1) failures,
+      COUNT(*) FILTER (WHERE failed IS NULL) outcome_unknown,
+      COUNT(*) FILTER (WHERE lower(tool_name) IN ('toolsearch','tool_search','functions.tool_search','functions__tool_search')) dynamic_discovery_calls,
       COUNT(*) FILTER (WHERE cache_status='hit') cache_hits,COUNT(*) FILTER (WHERE cache_status='miss') cache_misses,
       COUNT(*) FILTER (WHERE cache_status='unknown') cache_unknown,
       CAST(ROUND(AVG(duration_ms)) AS INTEGER) avg_duration_ms

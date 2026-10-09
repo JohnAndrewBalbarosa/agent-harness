@@ -160,7 +160,14 @@ def exact_result(value: dict) -> str:
 
 def tool_analytics(value: dict, tool: str, observed_at: str) -> dict:
     response = value.get("tool_response") or value.get("toolResponse")
-    response = response if isinstance(response, dict) else {}
+    if isinstance(response, str):
+        try:
+            decoded = json.loads(response)
+            response = decoded if isinstance(decoded, dict) else {}
+        except json.JSONDecodeError:
+            response = {}
+    elif not isinstance(response, dict):
+        response = {}
     tool_id = str(value.get("tool_use_id") or value.get("toolUseId") or "")[:240]
     lower = tool.lower()
     origin = "mcp" if lower.startswith(("mcp__", "mcp.")) else ("harness" if lower.startswith(("harness.", "ah_")) else ("built-in" if lower.startswith(("functions.", "functions__")) or lower in {"bash", "shell", "exec_command", "apply_patch"} else "unknown"))
@@ -180,13 +187,17 @@ def tool_analytics(value: dict, tool: str, observed_at: str) -> dict:
             started = None
     else:
         started = None
-    explicit_cache = response.get("cache_hit") if origin == "harness" else None
+    explicit_cache = response.get("cache_hit", response.get("cacheHit"))
     cache_hit = explicit_cache if isinstance(explicit_cache, bool) else None
+    outcome_status = "failure" if failed is True else "success" if failed is False else "unknown"
+    normalized_tool = lower.replace(".", "").replace("_", "")
+    discovery_mode = "dynamic" if normalized_tool in {"toolsearch", "functionstoolsearch"} else "direct"
     return {"toolUseId":tool_id or None,"toolName":tool[:160],"origin":origin,
             "parentToolUseId":str(value.get("parent_tool_use_id") or "")[:240] or None,
             "startedAt":started if isinstance(started, str) else None,"completedAt":observed_at,
-            "durationMs":duration,"failed":failed,"cacheHit":cache_hit,
-            "cacheStatus":"hit" if cache_hit is True else "miss" if cache_hit is False else "unknown"}
+            "durationMs":duration,"failed":failed,"outcomeStatus":outcome_status,"cacheHit":cache_hit,
+            "cacheStatus":"hit" if cache_hit is True else "miss" if cache_hit is False else "unknown",
+            "discoveryMode":discovery_mode}
 
 
 def instruction_load_state(instance_key: str, cwd_path: Path) -> dict:
@@ -281,7 +292,7 @@ def process(value: dict) -> int:
             "toolRecordId":str(obs.uuid.uuid5(obs.uuid.NAMESPACE_URL, f"tool:{project['id']}:{native_session}:{tool_identity}")),
             "projectId":project["id"],"promptId":row["prompt_id"],"executionId":row["execution_id"],
             "nativeSession":native_session,"nativeTurn":row["native_turn"]}))
-        operations.append(obs.operation("event.emit", {"eventId":obs.uuid7(),"executionId":row["execution_id"],"projectId":project["id"],"traceId":row["trace_id"],"sequenceNo":seq,"code":"agent.tool.completed","category":3,"severity":4 if analytics["failed"] else 1,"outcome":3 if analytics["failed"] else 1,"component":"codex","messageSummary":f"Tool completed: {tool}","attributes":{"tool":tool,"origin":analytics["origin"],"durationMs":analytics["durationMs"]},"rawPayload":{"toolInput":value.get("tool_input") or value.get("toolInput"),"toolResponse":value.get("tool_response") or value.get("toolResponse")}}))
+        operations.append(obs.operation("event.emit", {"eventId":obs.uuid7(),"executionId":row["execution_id"],"projectId":project["id"],"traceId":row["trace_id"],"sequenceNo":seq,"code":"agent.tool.completed","category":3,"severity":4 if analytics["failed"] else 1,"outcome":3 if analytics["failed"] else 1,"component":"codex","messageSummary":f"Tool completed: {tool}","attributes":{"tool":tool,"origin":analytics["origin"],"durationMs":analytics["durationMs"],"outcomeStatus":analytics["outcomeStatus"],"cacheStatus":analytics["cacheStatus"],"discoveryMode":analytics["discoveryMode"]},"rawPayload":{"toolInput":value.get("tool_input") or value.get("toolInput"),"toolResponse":value.get("tool_response") or value.get("toolResponse")}}))
         language_mismatches = communication_language_mismatches(value, tool)
         if language_mismatches:
             seq += 1
